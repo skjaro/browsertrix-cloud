@@ -98,15 +98,15 @@ backend_pull_policy: "Always"
 
 backend_password_secret: "PASSWORD!"
 
-# number of backend pods
-backend_num_replicas: 1
+# max number of backend pods with HPA
+backend_max_replicas: 3
 
 # number of workers per pod
 backend_workers: 2
 
-backend_cpu: "25m"
+backend_cpu: "100m"
 
-backend_memory: "350Mi"
+backend_memory: "500Mi"
 
 # port for operator service
 opPort: 8756
@@ -136,6 +136,9 @@ frontend_memory: "64Mi"
 # use for deployments on localhost when not using ingress
 # if using ingress, this value is ignored
 local_service_port: 30870
+
+# max replicas to autoscale to
+frontend_max_replicas: 3
 
 
 # MongoDB Image
