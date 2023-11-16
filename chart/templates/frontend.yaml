@@ -10,9 +10,9 @@ spec:
     matchLabels:
       app: {{ .Values.name }}
       role: frontend
-  {{ if eq .Values.frontend_max_replicas 1 }}
+  {{- if eq (int .Values.frontend_max_replicas) 1 }}
   replicas: 1
-  {{ end }}
+  {{- end }}
   template:
     metadata:
       labels:
@@ -112,7 +112,7 @@ spec:
   {{- end }}
 
 
-{{ if gt .Values.frontend_max_replicas 1 }}
+{{- if gt (int .Values.frontend_max_replicas) 1 }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
