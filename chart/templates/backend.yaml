@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: {{ .Values.name }}
       role: backend
-{{ if .Values.backend_max_replicas == 1 }}
+{{ if eq .Values.backend_max_replicas 1 }}
   replicas: 1
 {{ end }}
   template:
@@ -223,7 +223,7 @@ spec:
       port: {{ .Values.opPort }}
       name: operator
 
-{{ if .Values.backend_max_replicas > 1 }}
+{{ if gt .Values.backend_max_replicas 1 }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
