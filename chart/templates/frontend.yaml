@@ -10,6 +10,9 @@ spec:
     matchLabels:
       app: {{ .Values.name }}
       role: frontend
+  {{ if .Values.frontend_max_replicas == 1 }}
+  replicas: 1
+  {{ end }}
   template:
     metadata:
       labels:
@@ -109,6 +112,7 @@ spec:
   {{- end }}
 
 
+{{ if .Values.frontend_max_replicas > 1 }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -134,3 +138,4 @@ spec:
       target:
         type: Utilization
         averageUtilization: 95
+{{ end }}

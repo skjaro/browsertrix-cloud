@@ -10,6 +10,9 @@ spec:
     matchLabels:
       app: {{ .Values.name }}
       role: backend
+{{ if .Values.backend_max_replicas == 1 }}
+  replicas: 1
+{{ end }}
   template:
     metadata:
       labels:
@@ -220,6 +223,7 @@ spec:
       port: {{ .Values.opPort }}
       name: operator
 
+{{ if .Values.backend_max_replicas > 1 }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -245,3 +249,4 @@ spec:
       target:
         type: Utilization
         averageUtilization: 95
+{{ end }}

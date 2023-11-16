@@ -98,8 +98,9 @@ backend_pull_policy: "Always"
 
 backend_password_secret: "PASSWORD!"
 
-# max number of backend pods with HPA
-backend_max_replicas: 3
+# max number of backend pods to scale to
+# if > 1, will enable HPA for backend
+backend_max_replicas: 1
 
 # number of workers per pod
 backend_workers: 2
@@ -137,8 +138,9 @@ frontend_memory: "64Mi"
 # if using ingress, this value is ignored
 local_service_port: 30870
 
-# max replicas to autoscale to
-frontend_max_replicas: 3
+# max number of backend pods to scale to
+# if > 1, will enable HPA for frontend
+frontend_max_replicas: 1
 
 
 # MongoDB Image
