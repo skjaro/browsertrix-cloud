@@ -11,3 +11,5 @@ The main requirements for Browsertrix Cloud are:
 
 
 We have prepared a [Local Deployment Guide](./local) which covers several options for testing Browsertrix Cloud locally on a single machine, as well as a [Production (Self-Hosted and Cloud) Deployment](./production) guides to help with setting up Browsertrix Cloud for different production scenarios.
+
+Deployment-related administration tasks such as org export and import can be found in the [Administration Guide](./admin).
