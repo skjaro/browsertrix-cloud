@@ -422,6 +422,7 @@ class BaseCrawlOps:
         update_presigned_url: bool = False,
         crawl_id: Optional[str] = None,
     ):
+        """Regenerate presigned URLs for files as necessary"""
         if not files:
             print("no files")
             return
