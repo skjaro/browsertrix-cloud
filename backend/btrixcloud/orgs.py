@@ -1,6 +1,8 @@
 """
 Organization API handling
 """
+# pylint: disable=too-many-lines
+
 import math
 import os
 import secrets
@@ -705,7 +707,7 @@ class OrgOps:
             await self.crawls_db.insert_one(item_obj.to_dict())
 
             # Regenerate presigned URLs
-            await self.base_crawl_ops._resolve_signed_urls(
+            await self.base_crawl_ops.resolve_signed_urls(
                 item_obj.files, org, update_presigned_url=True, crawl_id=item_id
             )
 
