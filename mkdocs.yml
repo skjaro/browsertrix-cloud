@@ -51,6 +51,8 @@ nav:
       - Ansible:
         - deploy/ansible/digitalocean.md
         - deploy/ansible/microk8s.md
+      - Administration:
+        - deploy/admin.md
   - Develop:
       - develop/index.md
       - develop/local-dev-setup.md
