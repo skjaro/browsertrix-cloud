@@ -775,6 +775,8 @@ class OrgOps:
         # Delete org
         await self.orgs.delete_one({"_id": org.id})
 
+        return {"deleted": True}
+
 
 # ============================================================================
 # pylint: disable=too-many-statements, too-many-arguments
