@@ -101,6 +101,7 @@ class OrgOps:
         coll_ops: CollectionOps,
     ) -> None:
         """Set base crawl ops"""
+        # pylint: disable=attribute-defined-outside-init
         self.base_crawl_ops = base_crawl_ops
         self.profile_ops = profile_ops
         self.coll_ops = coll_ops
