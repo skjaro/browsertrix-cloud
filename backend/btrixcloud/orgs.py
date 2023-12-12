@@ -890,7 +890,7 @@ def init_orgs_api(app, mdb, user_manager, invites, crawl_manager, user_dep):
         if not user.is_superuser:
             raise HTTPException(status_code=403, detail="Not Allowed")
 
-        return await ops.delete_org_and_data(org.id, user_manager)
+        return await ops.delete_org_and_data(org, user_manager)
 
     @router.post("/rename", tags=["organizations"])
     async def rename_org(
