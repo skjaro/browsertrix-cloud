@@ -760,10 +760,17 @@ class OrgOps:
         for coll in collections:
             await self.coll_ops.delete_collection(coll["_id"], org)
 
+        # Delete users that only belong to this org
+        for org_user in org_users:
+            user = User(**org_user)
+            orgs, total_orgs = await self.get_orgs_for_user(user)
+            if total_orgs == 1:
+                first_org = orgs[0]
+                if first_org.id == org.id:
+                    await self.users_db.delete_one({"id": user.id})
+
         # Delete org
         await self.orgs.delete_one({"_id": org.id})
-
-        # TODO: Delete users only in this org?
 
 
 # ============================================================================
