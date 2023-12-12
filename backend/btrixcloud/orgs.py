@@ -762,17 +762,15 @@ class OrgOps:
 
         # Delete users that only belong to this org
         for org_user_id in list(org.users.keys()):
-            print(f"user id: {org_user_id}", flush=True)
             user = await user_manager.get_by_id(UUID(org_user_id))
             if not user:
-                print("no user found", flush=True)
                 continue
-            print(f"user: {user}", flush=True)
             orgs, total_orgs = await self.get_orgs_for_user(user)
             if total_orgs == 1:
                 first_org = orgs[0]
-                if first_org.id == org.id:
-                    await self.users_db.delete_one({"id": user.id})
+                if first_org.id != org.id:
+                    continue
+                await self.users_db.delete_one({"id": user.id})
 
         # Delete org
         await self.orgs.delete_one({"_id": org.id})
