@@ -727,7 +727,7 @@ class OrgOps:
 
         return {"imported": True}
 
-    async def delete_org_and_data(self, org: Organization):
+    async def delete_org_and_data(self, org: Organization, user_manager: UserManager):
         """Delete org and all of its associated data."""
         # Delete archived items
         cursor = self.crawls_db.find({"oid": org.id})
@@ -761,8 +761,10 @@ class OrgOps:
             await self.coll_ops.delete_collection(coll["_id"], org)
 
         # Delete users that only belong to this org
-        for org_user in org_users:
-            user = User(**org_user)
+        for org_user_id in list(org.users.keys()):
+            print(f"user id: {org_user_id}", flush=True)
+            user = await user_manager.get_by_id(org_user_id)
+            print(f"user: {user}", flush=True)
             orgs, total_orgs = await self.get_orgs_for_user(user)
             if total_orgs == 1:
                 first_org = orgs[0]
@@ -885,7 +887,7 @@ def init_orgs_api(app, mdb, user_manager, invites, crawl_manager, user_dep):
         if not user.is_superuser:
             raise HTTPException(status_code=403, detail="Not Allowed")
 
-        return await ops.delete_org_and_data(org.id)
+        return await ops.delete_org_and_data(org.id, user_manager)
 
     @router.post("/rename", tags=["organizations"])
     async def rename_org(
