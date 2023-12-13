@@ -13,18 +13,18 @@ def test_delete_org_non_superadmin(crawler_auth_headers, default_org_id):
 
 
 def test_delete_org_superadmin(admin_auth_headers, default_org_id):
-    # Ensure workflows and other data exists in org prior to deletion
-    r = requests.get(
-        f"{API_PREFIX}/orgs/{default_org_id}/crawlconfigs", headers=admin_auth_headers
-    )
-    assert r.status_code == 200
-    assert r.json()["total"] > 0
+    # Track items in org to ensure they're deleted later (we may want to expand
+    # this, but currently only have the ability to check items across all orgs)
+    item_ids = []
 
     r = requests.get(
         f"{API_PREFIX}/orgs/{default_org_id}/all-crawls", headers=admin_auth_headers
     )
     assert r.status_code == 200
-    assert r.json()["total"] > 0
+    data = r.json()
+    assert data["total"] > 0
+    for item in data["items"]:
+        item_ids.append(item["id"])
 
     # Delete org and its data
     r = requests.delete(
@@ -33,15 +33,10 @@ def test_delete_org_superadmin(admin_auth_headers, default_org_id):
     assert r.status_code == 200
     assert r.json()["deleted"]
 
-    # Ensure data got deleted
-    r = requests.get(
-        f"{API_PREFIX}/orgs/{default_org_id}/crawlconfigs", headers=admin_auth_headers
-    )
-    assert r.status_code == 200
-    assert r.json()["total"] == 0
-
-    r = requests.get(
-        f"{API_PREFIX}/orgs/{default_org_id}/all-crawls", headers=admin_auth_headers
-    )
-    assert r.status_code == 200
-    assert r.json()["total"] == 0
+    # Ensure items got deleted
+    for item_id in item_ids:
+        r = requests.get(
+            f"{API_PREFIX}/orgs/all/all-crawls/{item_id}/replay.json",
+            headers=admin_auth_headers,
+        )
+        assert r.status_code == 404
