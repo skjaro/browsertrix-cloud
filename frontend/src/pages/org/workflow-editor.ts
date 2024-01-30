@@ -25,29 +25,29 @@ import flow from "lodash/fp/flow";
 import uniq from "lodash/fp/uniq";
 import Fuse from "fuse.js";
 
-import LiteElement, { html } from "../../utils/LiteElement";
-import { regexEscape } from "../../utils/string";
-import type { AuthState } from "../../utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { regexEscape } from "@/utils/string";
+import type { AuthState } from "@/utils/AuthService";
 import {
   getUTCSchedule,
   humanizeSchedule,
   humanizeNextDate,
   getScheduleInterval,
   getNextDate,
-} from "../../utils/cron";
-import { maxLengthValidator } from "../../utils/form";
-import type { Tab } from "../../components/tab-list";
+} from "@/utils/cron";
+import { maxLengthValidator } from "@/utils/form";
+import type { Tab } from "@/components/ui/tab-list";
 import type {
   ExclusionRemoveEvent,
   ExclusionChangeEvent,
-} from "../../components/queue-exclusion-table";
-import type { TimeInputChangeEvent } from "../../components/time-input";
+} from "@/features/crawl-workflows/queue-exclusion-table";
+import type { TimeInputChangeEvent } from "@/components/ui/time-input";
 import type {
   TagInputEvent,
   Tags,
   TagsChangeEvent,
-} from "../../components/tag-input";
-import type { CollectionsChangeEvent } from "../../components/collections-add";
+} from "@/components/ui/tag-input";
+import type { CollectionsChangeEvent } from "@/features/collections/collections-add";
 import type {
   WorkflowParams,
   Profile,
@@ -118,6 +118,8 @@ type FormState = {
   autoAddCollections: string[];
   description: WorkflowParams["description"];
   autoscrollBehavior: boolean;
+  userAgent: string | null;
+  crawlerChannel: string;
 };
 
 const DEPTH_SUPPORTED_SCOPES = ["prefix", "host", "domain", "custom", "any"];
@@ -187,13 +189,15 @@ const getDefaultFormState = (): FormState => ({
     minute: 0,
     period: "AM",
   },
-  runNow: true,
+  runNow: false,
   jobName: "",
   browserProfile: null,
   tags: [],
   autoAddCollections: [],
   description: null,
   autoscrollBehavior: true,
+  userAgent: null,
+  crawlerChannel: "default",
 });
 const defaultProgressState = getDefaultProgressState();
 
@@ -262,6 +266,9 @@ export class CrawlConfigEditor extends LiteElement {
 
   @property({ type: Boolean })
   orgExecutionMinutesQuotaReached = false;
+
+  @state()
+  private showCrawlerChannels = false;
 
   @state()
   private tagOptions: string[] = [];
@@ -454,6 +461,9 @@ export class CrawlConfigEditor extends LiteElement {
 
   private getInitialFormState(): FormState {
     const defaultFormState = getDefaultFormState();
+    if (!this.configId) {
+      defaultFormState.runNow = true;
+    }
     if (!this.initialWorkflow) return defaultFormState;
     const formState: Partial<FormState> = {};
     const seedsConfig = this.initialWorkflow.config;
@@ -579,6 +589,10 @@ export class CrawlConfigEditor extends LiteElement {
       autoscrollBehavior: this.initialWorkflow.config.behaviors
         ? this.initialWorkflow.config.behaviors.includes("autoscroll")
         : defaultFormState.autoscrollBehavior,
+      userAgent:
+        this.initialWorkflow.config.userAgent ?? defaultFormState.userAgent,
+      crawlerChannel:
+        this.initialWorkflow.crawlerChannel || defaultFormState.crawlerChannel,
       ...formState,
     };
   }
@@ -1618,6 +1632,25 @@ https://archiveweb.page/images/${"logo.svg"}`}
         accounts.`)
       )}
       ${this.renderFormCol(html`
+        <btrix-select-crawler
+          orgId=${this.orgId}
+          .crawlerChannel=${this.formState.crawlerChannel}
+          .authState=${this.authState}
+          @on-change=${(e: any) =>
+            this.updateFormState({
+              crawlerChannel: e.detail.value,
+            })}
+          @on-update=${(e: any) => (this.showCrawlerChannels = e.detail.show)}
+        ></btrix-select-crawler>
+      `)}
+      ${this.showCrawlerChannels
+        ? this.renderHelpTextCol(
+            msg(
+              `Choose a Browsertrix Crawler Release Channel. If available, other versions may provide new/experimental crawling features.`
+            )
+          )
+        : html``}
+      ${this.renderFormCol(html`
         <sl-checkbox name="blockAds" ?checked=${this.formState.blockAds}>
           ${msg("Block ads by domain")}
         </sl-checkbox>
@@ -1632,6 +1665,27 @@ https://archiveweb.page/images/${"logo.svg"}`}
             >Steven Black’s Hosts file</a
           >.`),
         false
+      )}
+      ${this.renderFormCol(html`
+        <sl-input
+          name="userAgent"
+          label=${msg("User Agent")}
+          autocomplete="off"
+          placeholder=${msg("Default")}
+          value=${this.formState.userAgent || ""}
+        >
+        </sl-input>
+      `)}
+      ${this.renderHelpTextCol(
+        msg(html`Set custom user agent for crawler browsers to use in requests.
+          For common user agents see
+          <a
+            href="https://www.useragents.me/"
+            class="text-blue-600 hover:text-blue-500"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            >Useragents.me</a
+          >.`)
       )}
       ${this.renderFormCol(html`
         <btrix-language-select
@@ -1804,7 +1858,7 @@ https://archiveweb.page/images/${"logo.svg"}`}
           autocomplete="off"
           placeholder=${msg("Our Website (example.com)")}
           value=${this.formState.jobName}
-          helpText=${this.validateNameMax.helpText}
+          help-text=${this.validateNameMax.helpText}
           @sl-input=${this.validateNameMax.validate}
         ></sl-input>
       `)}
@@ -1823,7 +1877,7 @@ https://archiveweb.page/images/${"logo.svg"}`}
               ? undefined
               : this.formState.description
           )}
-          helpText=${this.validateDescriptionMax.helpText}
+          help-text=${this.validateDescriptionMax.helpText}
           @sl-input=${this.validateDescriptionMax.validate}
         ></sl-textarea>
       `)}
@@ -1914,6 +1968,7 @@ https://archiveweb.page/images/${"logo.svg"}`}
               ...crawlConfig,
               profileName,
               oid: this.orgId,
+              image: null,
             } as CrawlConfig}
             .seeds=${crawlConfig.config.seeds}
           >
@@ -2355,7 +2410,7 @@ https://archiveweb.page/images/${"logo.svg"}`}
         behaviorTimeout: this.formState.behaviorTimeoutSeconds,
         pageLoadTimeout: this.formState.pageLoadTimeoutSeconds,
         pageExtraDelay: this.formState.pageExtraDelaySeconds,
-
+        userAgent: this.formState.userAgent,
         limit: this.formState.pageLimit,
         lang: this.formState.lang || "",
         blockAds: this.formState.blockAds,
@@ -2365,6 +2420,7 @@ https://archiveweb.page/images/${"logo.svg"}`}
           : DEFAULT_BEHAVIORS.slice(1)
         ).join(","),
       },
+      crawlerChannel: this.formState.crawlerChannel || "default",
     };
 
     return config;

@@ -5,16 +5,18 @@ import { ifDefined } from "lit/directives/if-defined.js";
 import { classMap } from "lit/directives/class-map.js";
 import { msg, localized, str } from "@lit/localize";
 
-import type { PageChangeEvent } from "../../components/pagination";
-import { RelativeDuration } from "../../components/relative-duration";
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
-import { isActive } from "../../utils/crawler";
-import { CopyButton } from "../../components/copy-button";
-import type { Crawl, CrawlConfig, Seed } from "./types";
-import type { APIPaginatedList } from "../../types/api";
-import { humanizeExecutionSeconds } from "../../utils/executionTimeFormatter";
-import type { CrawlLog } from "../../components/crawl-logs";
+import type { PageChangeEvent } from "@/components/ui/pagination";
+import { RelativeDuration } from "@/components/ui/relative-duration";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { isActive } from "@/utils/crawler";
+import { CopyButton } from "@/components/ui/copy-button";
+import type { ArchivedItem, Crawl, CrawlConfig, Seed, Workflow } from "./types";
+import type { APIPaginatedList } from "@/types/api";
+import { humanizeExecutionSeconds } from "@/utils/executionTimeFormatter";
+import type { CrawlLog } from "@/features/archived-items/crawl-logs";
+
+import capitalize from "lodash/fp/capitalize";
 
 const SECTIONS = [
   "overview",
@@ -40,7 +42,7 @@ export class CrawlDetail extends LiteElement {
   authState?: AuthState;
 
   @property({ type: String })
-  itemType: Crawl["type"] = null;
+  itemType: ArchivedItem["type"] = "crawl";
 
   @property({ type: String })
   collectionId?: string;
@@ -61,7 +63,10 @@ export class CrawlDetail extends LiteElement {
   isCrawler!: boolean;
 
   @state()
-  private crawl?: Crawl;
+  private crawl?: ArchivedItem;
+
+  @state()
+  private workflow?: Workflow;
 
   @state()
   private seeds?: APIPaginatedList<Seed>;
@@ -116,6 +121,9 @@ export class CrawlDetail extends LiteElement {
       this.fetchCrawl();
       this.fetchCrawlLogs();
       this.fetchSeeds();
+    }
+    if (changedProperties.has("workflowId") && this.workflowId) {
+      this.fetchWorkflow();
     }
   }
 
@@ -218,7 +226,7 @@ export class CrawlDetail extends LiteElement {
         break;
     }
 
-    let label = "";
+    let label = "Back";
     if (this.workflowId) {
       label = msg("Back to Crawl Workflow");
     } else if (this.collectionId) {
@@ -251,9 +259,9 @@ export class CrawlDetail extends LiteElement {
       <div class="mb-4">${this.renderHeader()}</div>
 
       <main>
-        <section class="grid grid-cols-6 gap-4">
-          <div class="col-span-6 md:col-span-1">${this.renderNav()}</div>
-          <div class="col-span-6 md:col-span-5">${sectionContent}</div>
+        <section class="grid grid-cols-14 gap-6">
+          <div class="col-span-14 md:col-span-3">${this.renderNav()}</div>
+          <div class="col-span-14 md:col-span-11">${sectionContent}</div>
         </section>
       </main>
 
@@ -269,15 +277,12 @@ export class CrawlDetail extends LiteElement {
 
   private renderName() {
     if (!this.crawl)
-      return html`<sl-skeleton
-        class="inline-block"
-        style="width: 15em"
-      ></sl-skeleton>`;
+      return html`<sl-skeleton class="inline-block h-8 w-60"></sl-skeleton>`;
 
     if (this.crawl.name) return this.crawl.name;
-    if (!this.crawl.firstSeed) return this.crawl.id;
+    if (!this.crawl.firstSeed || !this.crawl.seedCount) return this.crawl.id;
     const remainder = this.crawl.seedCount - 1;
-    let crawlName: any = html`<span class="break-words"
+    let crawlName: TemplateResult = html`<span class="break-words"
       >${this.crawl.firstSeed}</span
     >`;
     if (remainder) {
@@ -314,7 +319,7 @@ export class CrawlDetail extends LiteElement {
         <li class="relative grow" role="menuitem" aria-selected="${isActive}">
           <a
             class="flex gap-2 flex-col md:flex-row items-center font-semibold rounded-md h-full p-2 ${isActive
-              ? "text-blue-600 bg-blue-100 shadow-sm"
+              ? "text-blue-600 bg-blue-100 shadow-sm shadow-blue-800/20"
               : "text-neutral-600 hover:bg-blue-50"}"
             href=${`${baseUrl}${window.location.search}#${section}`}
             @click=${() => (this.sectionName = section)}
@@ -331,7 +336,7 @@ export class CrawlDetail extends LiteElement {
       `;
     };
     return html`
-      <nav class="border-b md:border-b-0 pb-4 md:mt-10">
+      <nav class="sticky top-0 border-b md:border-b-0 pb-4 md:mt-10">
         <ul
           class="flex flex-row md:flex-col gap-2 text-center md:text-start"
           role="menu"
@@ -380,7 +385,7 @@ export class CrawlDetail extends LiteElement {
     return html`
       <header class="md:flex items-center gap-2 pb-3 mb-3 border-b">
         <h1
-          class="flex-1 min-w-0 text-xl font-semibold leading-7 truncate mb-2 md:mb-0"
+          class="grid flex-1 min-w-0 text-xl font-semibold leading-7 truncate mb-2 md:mb-0"
         >
           ${this.renderName()}
         </h1>
@@ -407,7 +412,11 @@ export class CrawlDetail extends LiteElement {
                 </sl-button-group>
               `
             : ""}
-          ${this.crawl && this.isCrawler ? this.renderMenu() : ""}
+          ${this.crawl && this.isCrawler
+            ? this.renderMenu()
+            : html`<sl-skeleton
+                class="w-24 h-8 [--border-radius:theme(borderRadius.sm)]"
+              ></sl-skeleton>`}
         </div>
       </header>
     `;
@@ -444,14 +453,17 @@ export class CrawlDetail extends LiteElement {
               <sl-menu-item
                 @click=${() =>
                   this.navTo(
-                    `${this.orgBasePath}/workflows/crawl/${this.crawl!.cid}`
+                    `${this.orgBasePath}/workflows/crawl/${
+                      (this.crawl as Crawl).cid
+                    }`
                   )}
               >
                 <sl-icon name="arrow-return-right" slot="prefix"></sl-icon>
                 ${msg("Go to Workflow")}
               </sl-menu-item>
               <sl-menu-item
-                @click=${() => CopyButton.copyToClipboard(this.crawl!.cid)}
+                @click=${() =>
+                  CopyButton.copyToClipboard((this.crawl as Crawl).cid)}
               >
                 <sl-icon name="copy-code" library="app" slot="prefix"></sl-icon>
                 ${msg("Copy Workflow ID")}
@@ -560,7 +572,7 @@ export class CrawlDetail extends LiteElement {
                   ?isUpload=${this.crawl.type === "upload"}
                 ></btrix-crawl-status>
               `
-            : html`<sl-skeleton class="h-6"></sl-skeleton>`}
+            : html`<sl-skeleton class="h-[16px] mb-[3px] w-24"></sl-skeleton>`}
         </btrix-desc-list-item>
         ${when(this.crawl, () =>
           this.crawl!.type === "upload"
@@ -622,7 +634,7 @@ export class CrawlDetail extends LiteElement {
                   ${this.crawl!.finished
                     ? html`<span
                         >${humanizeExecutionSeconds(
-                          this.crawl!.crawlExecSeconds * 1000
+                          this.crawl!.crawlExecSeconds
                         )}</span
                       >`
                     : html`<span class="text-0-400">${msg("Pending")}</span>`}
@@ -665,22 +677,36 @@ export class CrawlDetail extends LiteElement {
                           <span> pages</span>`
                       : ""}`
                 : html`<span class="text-0-400">${msg("Unknown")}</span>`}`
-            : html`<sl-skeleton class="h-5"></sl-skeleton>`}
+            : html`<sl-skeleton class="h-[16px] w-24"></sl-skeleton>`}
         </btrix-desc-list-item>
+        ${this.renderCrawlChannelVersion()}
         <btrix-desc-list-item label=${msg("Crawl ID")}>
           ${this.crawl
-            ? html`
-                <div class="flex items-center gap-2">
-                  <code class="grow" title=${this.crawl.id}
-                    >${this.crawl.id}</code
-                  >
-                  <btrix-copy-button value=${this.crawl.id}></btrix-copy-button>
-                </div>
-              `
-            : html`<sl-skeleton class="h-6"></sl-skeleton>`}
+            ? html`<btrix-copy-field
+                value="${this.crawl.id}"
+              ></btrix-copy-field>`
+            : html`<sl-skeleton class="h-[16px] mb-[3px] w-24"></sl-skeleton>`}
         </btrix-desc-list-item>
       </btrix-desc-list>
     `;
+  }
+
+  private renderCrawlChannelVersion() {
+    if (!this.crawl) {
+      return html``;
+    }
+
+    const text =
+      capitalize(this.crawl.crawlerChannel || "default") +
+      (this.crawl.image ? ` (${this.crawl.image})` : "");
+
+    return html` <btrix-desc-list-item
+      label=${msg("Crawler Channel (Exact Crawler Version)")}
+    >
+      <div class="flex items-center gap-2">
+        <code class="grow" title=${text}>${text}</code>
+      </div>
+    </btrix-desc-list-item>`;
   }
 
   private renderMetadata() {
@@ -700,7 +726,7 @@ ${this.crawl?.description}
                   >`,
                 () => noneText
               ),
-            () => html`<sl-skeleton></sl-skeleton>`
+            () => html`<sl-skeleton class="h-[16px] w-24"></sl-skeleton>`
           )}
         </btrix-desc-list-item>
         <btrix-desc-list-item label=${msg("Tags")}>
@@ -716,7 +742,7 @@ ${this.crawl?.description}
                   ),
                 () => noneText
               ),
-            () => html`<sl-skeleton></sl-skeleton>`
+            () => html`<sl-skeleton class="h-[16px] w-24"></sl-skeleton>`
           )}
         </btrix-desc-list-item>
         <btrix-desc-list-item label=${msg("In Collections")}>
@@ -742,7 +768,7 @@ ${this.crawl?.description}
                 `,
                 () => noneText
               ),
-            () => html`<sl-skeleton></sl-skeleton>`
+            () => html`<sl-skeleton class="h-[16px] w-24"></sl-skeleton>`
           )}
         </btrix-desc-list-item>
       </btrix-desc-list>
@@ -834,16 +860,16 @@ ${this.crawl?.description}
     return html`
       <div aria-live="polite" aria-busy=${!this.crawl || !this.seeds}>
         ${when(
-          this.crawl && this.seeds,
+          this.crawl && this.seeds && (!this.workflowId || this.workflow),
           () => html`
             <btrix-config-details
               .authState=${this.authState!}
               .crawlConfig=${{
                 ...this.crawl,
-                autoAddCollections: this.crawl!.collectionIds,
+                jobType: this.workflow?.jobType,
               } as CrawlConfig}
               .seeds=${this.seeds!.items}
-              hideTags
+              hideMetadata
             ></btrix-config-details>
           `,
           this.renderLoading
@@ -886,13 +912,19 @@ ${this.crawl?.description}
     }
   }
 
+  private async fetchWorkflow(): Promise<void> {
+    try {
+      this.workflow = await this.getWorkflow();
+    } catch (e: unknown) {
+      console.debug(e);
+    }
+  }
+
   private async getCrawl(): Promise<Crawl> {
     const apiPath = `/orgs/${this.orgId}/${
       this.itemType === "upload" ? "uploads" : "crawls"
     }/${this.crawlId}/replay.json`;
-    const data: Crawl = await this.apiFetch(apiPath, this.authState!);
-
-    return data;
+    return this.apiFetch<Crawl>(apiPath, this.authState!);
   }
 
   private async getSeeds() {
@@ -904,6 +936,13 @@ ${this.crawl?.description}
     return data;
   }
 
+  private async getWorkflow(): Promise<Workflow> {
+    return this.apiFetch<Workflow>(
+      `/orgs/${this.orgId}/crawlconfigs/${this.workflowId}`,
+      this.authState!
+    );
+  }
+
   private async fetchCrawlLogs(
     params: Partial<APIPaginatedList> = {}
   ): Promise<void> {
@@ -912,7 +951,9 @@ ${this.crawl?.description}
     }
     try {
       this.logs = await this.getCrawlErrors(params);
-    } catch {
+    } catch (e: unknown) {
+      console.debug(e);
+
       this.notify({
         message: msg("Sorry, couldn't retrieve crawl logs at this time."),
         variant: "danger",

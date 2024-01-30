@@ -5,11 +5,11 @@ import { until } from "lit/directives/until.js";
 import { msg, localized, str } from "@lit/localize";
 import queryString from "query-string";
 
-import { CopyButton } from "../../components/copy-button";
-import { CrawlStatus } from "../../components/crawl-status";
-import { RelativeDuration } from "../../components/relative-duration";
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
+import { CopyButton } from "@/components/ui/copy-button";
+import { CrawlStatus } from "@/features/archived-items/crawl-status";
+import { RelativeDuration } from "@/components/ui/relative-duration";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
 import type {
   Crawl,
   CrawlState,
@@ -17,13 +17,13 @@ import type {
   WorkflowParams,
   Seed,
 } from "./types";
-import { humanizeSchedule } from "../../utils/cron";
-import type { APIPaginatedList } from "../../types/api";
-import { inactiveCrawlStates, isActive } from "../../utils/crawler";
+import { humanizeSchedule } from "@/utils/cron";
+import type { APIPaginatedList } from "@/types/api";
+import { inactiveCrawlStates, isActive } from "@/utils/crawler";
 import type { SlSelect } from "@shoelace-style/shoelace";
-import type { PageChangeEvent } from "../../components/pagination";
-import { ExclusionEditor } from "../../components/exclusion-editor";
-import type { CrawlLog } from "../../components/crawl-logs";
+import type { PageChangeEvent } from "@/components/ui/pagination";
+import { ExclusionEditor } from "@/features/crawl-workflows/exclusion-editor";
+import type { CrawlLog } from "@/features/archived-items/crawl-logs";
 
 const SECTIONS = ["crawls", "watch", "settings", "logs"] as const;
 type Tab = (typeof SECTIONS)[number];
@@ -530,7 +530,7 @@ export class WorkflowDetail extends LiteElement {
     const isActive = tabName === this.activePanel;
     let className = "text-neutral-600 hover:bg-neutral-50";
     if (isActive) {
-      className = "text-blue-600 bg-blue-50 shadow-sm";
+      className = "text-blue-600 bg-blue-50 shadow-sm shadow-blue-800/20";
     } else if (disabled) {
       className = "text-neutral-300 cursor-not-allowed";
     }
@@ -538,7 +538,7 @@ export class WorkflowDetail extends LiteElement {
       <a
         slot="nav"
         href=${`${window.location.pathname}#${tabName}`}
-        class="block font-medium rounded-sm mb-2 mr-2 p-2 transition-all ${className}"
+        class="block font-medium rounded-sm mb-2 p-2 transition-all ${className}"
         aria-selected=${isActive}
         aria-disabled=${disabled}
         @click=${(e: MouseEvent) => {
@@ -823,7 +823,7 @@ export class WorkflowDetail extends LiteElement {
               size="small"
               pill
               multiple
-              maxOptionsVisible="1"
+              max-options-visible="1"
               placeholder=${msg("All Crawls")}
               @sl-change=${async (e: CustomEvent) => {
                 const value = (e.target as SlSelect).value as CrawlState[];
@@ -1237,7 +1237,7 @@ export class WorkflowDetail extends LiteElement {
       <btrix-dialog
         .label=${msg("Crawl Queue Editor")}
         .open=${this.openDialogName === "exclusions"}
-        style=${/* max-w-screen-lg: */ `--width: 1124px;`}
+        style=${`--width: var(--btrix-screen-desktop)`}
         @sl-request-close=${() => (this.openDialogName = undefined)}
         @sl-show=${this.showDialog}
         @sl-after-hide=${() => (this.isDialogVisible = false)}
@@ -1283,7 +1283,7 @@ export class WorkflowDetail extends LiteElement {
       <div>
         <sl-radio-group
           value=${this.workflow.scale}
-          helpText=${msg(
+          help-text=${msg(
             "This change will only apply to the currently running crawl."
           )}
         >

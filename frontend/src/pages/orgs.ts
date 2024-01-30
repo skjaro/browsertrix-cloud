@@ -1,16 +1,16 @@
 import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized } from "@lit/localize";
 
-import type { AuthState } from "../utils/AuthService";
-import type { CurrentUser } from "../types/user";
-import type { OrgData } from "../utils/orgs";
-import LiteElement, { html } from "../utils/LiteElement";
-import { needLogin } from "../utils/auth";
-import type { APIPaginatedList } from "../types/api";
+import type { AuthState } from "@/utils/AuthService";
+import type { CurrentUser } from "@/types/user";
+import type { OrgData } from "@/utils/orgs";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { needLogin } from "@/utils/auth";
+import type { APIPaginatedList } from "@/types/api";
 
-@needLogin
 @localized()
 @customElement("btrix-orgs")
+@needLogin
 export class Orgs extends LiteElement {
   @property({ type: Object })
   authState?: AuthState;
@@ -29,13 +29,13 @@ export class Orgs extends LiteElement {
     return html`
       <div class="bg-white">
         <header
-          class="w-full max-w-screen-lg mx-auto px-3 py-4 box-border md:py-8"
+          class="w-full max-w-screen-desktop mx-auto px-3 py-4 box-border md:py-8"
         >
           <h1 class="text-xl font-medium">${msg("Organizations")}</h1>
         </header>
         <hr />
       </div>
-      <main class="w-full max-w-screen-lg mx-auto px-3 py-4 box-border">
+      <main class="w-full max-w-screen-desktop mx-auto px-3 py-4 box-border">
         ${this.orgList
           ? this.renderOrgs()
           : html`

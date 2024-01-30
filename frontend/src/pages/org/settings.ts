@@ -6,13 +6,13 @@ import { serialize } from "@shoelace-style/shoelace/dist/utilities/form.js";
 import slugify from "slugify";
 import type { SlInput } from "@shoelace-style/shoelace";
 
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
-import { isAdmin, isCrawler, AccessCode } from "../../utils/orgs";
-import type { OrgData } from "../../utils/orgs";
-import type { CurrentUser } from "../../types/user";
-import type { APIPaginatedList } from "../../types/api";
-import { maxLengthValidator } from "../../utils/form";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { isAdmin, isCrawler, AccessCode } from "@/utils/orgs";
+import type { OrgData } from "@/utils/orgs";
+import type { CurrentUser } from "@/types/user";
+import type { APIPaginatedList } from "@/types/api";
+import { maxLengthValidator } from "@/utils/form";
 
 type Tab = "information" | "members";
 type User = {
@@ -159,8 +159,8 @@ export class OrgSettings extends LiteElement {
       <a
         slot="nav"
         href=${`${this.orgBasePath}/${path}`}
-        class="block font-medium rounded-sm mb-2 mr-2 p-2 transition-all ${isActive
-          ? "text-blue-600 bg-blue-50 shadow-sm"
+        class="block font-medium rounded-sm mb-2 p-2 transition-all ${isActive
+          ? "text-blue-600 bg-blue-50 shadow-sm shadow-blue-800/20"
           : "text-neutral-600 hover:bg-neutral-50"}"
         @click=${this.navLink}
         aria-selected=${isActive}
@@ -174,9 +174,9 @@ export class OrgSettings extends LiteElement {
     return html`<div class="rounded border">
       <form @submit=${this.onOrgInfoSubmit}>
         <div class="grid grid-cols-5 gap-x-4 p-4">
-          <div class="col-span-5 md:col-span-3">
+          <div class="col-span-5 md:col-span-3 self-baseline">
             <sl-input
-              class="with-max-help-text"
+              class="with-max-help-text mb-2"
               name="orgName"
               size="small"
               label=${msg("Org Name")}
@@ -185,11 +185,11 @@ export class OrgSettings extends LiteElement {
               value=${this.org.name}
               minlength="2"
               required
-              helpText=${this.validateOrgNameMax.helpText}
+              help-text=${this.validateOrgNameMax.helpText}
               @sl-input=${this.validateOrgNameMax.validate}
             ></sl-input>
           </div>
-          <div class="col-span-5 md:col-span-2 flex gap-2 pt-6">
+          <div class="col-span-5 md:col-span-2 flex gap-2 md:mt-8">
             <div class="text-base">
               <sl-icon name="info-circle"></sl-icon>
             </div>
@@ -199,8 +199,9 @@ export class OrgSettings extends LiteElement {
               )}
             </div>
           </div>
-          <div class="col-span-5 md:col-span-3">
+          <div class="col-span-5 md:col-span-3 mt-6">
             <sl-input
+              class="mb-2"
               name="orgSlug"
               size="small"
               label=${msg("Custom URL Identifier")}
@@ -210,7 +211,7 @@ export class OrgSettings extends LiteElement {
               minlength="2"
               maxlength="30"
               required
-              helpText=${msg(
+              help-text=${msg(
                 str`Org home page: ${window.location.protocol}//${
                   window.location.hostname
                 }/orgs/${
@@ -224,7 +225,7 @@ export class OrgSettings extends LiteElement {
             ></sl-input>
           </div>
 
-          <div class="col-span-5 md:col-span-2 flex gap-2 pt-6">
+          <div class="col-span-5 md:col-span-2 flex gap-2 md:mt-14">
             <div class="text-base">
               <sl-icon name="info-circle"></sl-icon>
             </div>
@@ -235,17 +236,13 @@ export class OrgSettings extends LiteElement {
             </div>
           </div>
           <div class="col-span-5 md:col-span-3 mt-6">
-            <span class="text-xs">${msg("Org ID")}</span>
-            <div
-              class="flex items-center justify-between border rounded text-neutral-500 mt-1 mb-4 px-2"
-            >
-              ${this.org.id}
-              <btrix-copy-button
-                .getValue=${() => this.org.id}
-              ></btrix-copy-button>
-            </div>
+            <btrix-copy-field
+              class="mb-2"
+              label=${msg("Org ID")}
+              value=${this.org.id}
+            ></btrix-copy-field>
           </div>
-          <div class="col-span-5 md:col-span-2 flex gap-2 pt-6 mt-6">
+          <div class="col-span-5 md:col-span-2 flex gap-2 md:mt-14">
             <div class="text-base">
               <sl-icon name="info-circle"></sl-icon>
             </div>
@@ -272,16 +269,20 @@ export class OrgSettings extends LiteElement {
   }
 
   private renderMembers() {
-    const columnWidths = ["100%", "10rem", "1.5rem"];
+    const columnWidths = ["1fr", "auto", "min-content"];
     const rows = Object.entries(this.org.users!).map(([_id, user]) => [
       user.name,
       this.renderUserRoleSelect(user),
       this.renderRemoveMemberButton(user),
     ]);
     return html`
-      <section class="rounded border overflow-hidden">
+      <section>
         <btrix-data-table
-          .columns=${[msg("Name"), msg("Role"), ""]}
+          .columns=${[
+            msg("Name"),
+            msg("Role"),
+            html`<span class="sr-only">${msg("Delete")}</span>`,
+          ]}
           .rows=${rows}
           .columnWidths=${columnWidths}
         >
@@ -296,18 +297,20 @@ export class OrgSettings extends LiteElement {
               ${msg("Pending Invites")}
             </h3>
 
-            <div class="rounded border overflow-hidden">
-              <btrix-data-table
-                .columns=${[msg("Email"), msg("Role"), ""]}
-                .rows=${this.pendingInvites.map((user) => [
-                  user.email,
-                  this.renderUserRole(user),
-                  this.renderRemoveInviteButton(user),
-                ])}
-                .columnWidths=${columnWidths}
-              >
-              </btrix-data-table>
-            </div>
+            <btrix-data-table
+              .columns=${[
+                msg("Email"),
+                msg("Role"),
+                html`<span class="sr-only">${msg("Remove")}</span>`,
+              ]}
+              .rows=${this.pendingInvites.map((user) => [
+                user.email,
+                this.renderUserRole(user),
+                this.renderRemoveInviteButton(user),
+              ])}
+              .columnWidths=${columnWidths}
+            >
+            </btrix-data-table>
           </section>
         `
       )}

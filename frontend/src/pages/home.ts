@@ -2,12 +2,12 @@ import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized, str } from "@lit/localize";
 import { serialize } from "@shoelace-style/shoelace/dist/utilities/form.js";
 
-import type { AuthState } from "../utils/AuthService";
-import type { CurrentUser } from "../types/user";
-import type { OrgData } from "../utils/orgs";
-import LiteElement, { html } from "../utils/LiteElement";
-import type { APIPaginatedList } from "../types/api";
-import { maxLengthValidator } from "../utils/form";
+import type { AuthState } from "@/utils/AuthService";
+import type { CurrentUser } from "@/types/user";
+import type { OrgData } from "@/utils/orgs";
+import LiteElement, { html } from "@/utils/LiteElement";
+import type { APIPaginatedList } from "@/types/api";
+import { maxLengthValidator } from "@/utils/form";
 
 @localized()
 @customElement("btrix-home")
@@ -89,13 +89,13 @@ export class Home extends LiteElement {
     return html`
       <div class="bg-white">
         <header
-          class="w-full max-w-screen-lg mx-auto px-3 py-4 box-border md:py-8"
+          class="w-full max-w-screen-desktop mx-auto px-3 py-4 box-border md:py-8"
         >
           <h1 class="text-xl font-medium">${title}</h1>
         </header>
         <hr />
       </div>
-      <main class="w-full max-w-screen-lg mx-auto px-3 py-4 box-border">
+      <main class="w-full max-w-screen-desktop mx-auto px-3 py-4 box-border">
         ${content}
       </main>
     `;
@@ -199,7 +199,7 @@ export class Home extends LiteElement {
                     placeholder=${msg("My Organization")}
                     autocomplete="off"
                     required
-                    helpText=${this.validateOrgNameMax.helpText}
+                    help-text=${this.validateOrgNameMax.helpText}
                     @sl-input=${this.validateOrgNameMax.validate}
                   >
                   </sl-input>

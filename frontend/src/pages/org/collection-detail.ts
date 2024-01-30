@@ -6,17 +6,18 @@ import { guard } from "lit/directives/guard.js";
 import queryString from "query-string";
 import type { TemplateResult } from "lit";
 import type { SlCheckbox } from "@shoelace-style/shoelace";
+import { repeat } from "lit/directives/repeat.js";
 
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
-import type { Collection } from "../../types/collection";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import type { Collection } from "@/types/collection";
 import type {
   APIPaginatedList,
   APIPaginationQuery,
   APISortQuery,
-} from "../../types/api";
-import type { Crawl, CrawlState, Upload } from "../../types/crawler";
-import type { PageChangeEvent } from "../../components/pagination";
+} from "@/types/api";
+import type { ArchivedItem, Crawl, CrawlState, Upload } from "@/types/crawler";
+import type { PageChangeEvent } from "@/components/ui/pagination";
 
 const ABORT_REASON_THROTTLE = "throttled";
 const DESCRIPTION_MAX_HEIGHT_PX = 200;
@@ -34,6 +35,9 @@ export class CollectionDetail extends LiteElement {
   orgId!: string;
 
   @property({ type: String })
+  userId!: string;
+
+  @property({ type: String })
   collectionId!: string;
 
   @property({ type: String })
@@ -46,10 +50,10 @@ export class CollectionDetail extends LiteElement {
   private collection?: Collection;
 
   @state()
-  private archivedItems?: APIPaginatedList<Crawl | Upload>;
+  private archivedItems?: APIPaginatedList<ArchivedItem>;
 
   @state()
-  private openDialogName?: "delete";
+  private openDialogName?: "delete" | "editMetadata" | "editItems";
 
   @state()
   private isDescriptionExpanded = false;
@@ -114,38 +118,60 @@ export class CollectionDetail extends LiteElement {
         </div>
         ${when(
           this.isCrawler || (!this.isCrawler && this.collection?.isPublic),
-          () => html`
-            <sl-button
-              variant="primary"
-              size="small"
-              @click=${() => (this.showShareInfo = true)}
-            >
-              <sl-icon name="box-arrow-up" slot="prefix"></sl-icon>
-              Share
-            </sl-button>
-          `
+          () =>
+            html`
+              <sl-button
+                variant=${this.collection?.crawlCount ? "primary" : "default"}
+                size="small"
+                @click=${() => (this.showShareInfo = true)}
+              >
+                <sl-icon name="box-arrow-up" slot="prefix"></sl-icon>
+                ${msg("Share")}
+              </sl-button>
+            `
         )}
         ${when(this.isCrawler, this.renderActions)}
       </header>
       <div class="border rounded-lg py-2 px-4 mb-3">
         ${this.renderInfoBar()}
       </div>
-      <div class="mb-3">${this.renderTabs()}</div>
-
+      <div class="flex justify-between items-center mb-3">
+        ${this.renderTabs()}
+        ${when(
+          this.isCrawler,
+          () => html`
+            <sl-button
+              variant=${!this.collection || this.collection.crawlCount
+                ? "default"
+                : "primary"}
+              size="small"
+              @click=${() => (this.openDialogName = "editItems")}
+              ?disabled=${!this.collection}
+            >
+              <sl-icon name="ui-checks" slot="prefix"></sl-icon>
+              ${msg("Select Items")}
+            </sl-button>
+          `
+        )}
+      </div>
       ${choose(
         this.collectionTab,
         [
-          ["replay", this.renderOverview],
-          ["items", this.renderArchivedItems],
+          ["replay", () => guard([this.collection], this.renderReplay)],
+          [
+            "items",
+            () => guard([this.archivedItems], this.renderArchivedItems),
+          ],
         ],
 
         () => html`<btrix-not-found></btrix-not-found>`
       )}
+      <div class="my-7">${this.renderDescription()}</div>
 
       <btrix-dialog
-        .label=${msg("Delete Collection?")}
-        .open=${this.openDialogName === "delete"}
-        @sl-request-close=${() => (this.openDialogName = undefined)}
+        label=${msg("Delete Collection?")}
+        ?open=${this.openDialogName === "delete"}
+        @sl-hide=${() => (this.openDialogName = undefined)}
       >
         ${msg(
           html`Are you sure you want to delete
@@ -155,7 +181,7 @@ export class CollectionDetail extends LiteElement {
           <sl-button
             size="small"
             @click=${() => (this.openDialogName = undefined)}
-            >Cancel</sl-button
+            >${msg("Cancel")}</sl-button
           >
           <sl-button
             size="small"
@@ -164,10 +190,39 @@ export class CollectionDetail extends LiteElement {
               await this.deleteCollection();
               this.openDialogName = undefined;
             }}
-            >Delete Collection</sl-button
+            >${msg("Delete Collection")}</sl-button
           >
         </div>
       </btrix-dialog>
+      <btrix-collection-items-dialog
+        orgId=${this.orgId}
+        userId=${this.userId}
+        collectionId=${this.collectionId}
+        collectionName=${this.collection?.name || ""}
+        .authState=${this.authState}
+        ?isCrawler=${this.isCrawler}
+        ?open=${this.openDialogName === "editItems"}
+        @sl-hide=${() => (this.openDialogName = undefined)}
+        @btrix-collection-saved=${() => {
+          this.fetchCollection();
+          this.fetchArchivedItems();
+        }}
+      >
+      </btrix-collection-items-dialog>
+      ${when(
+        this.collection,
+        () => html`
+          <btrix-collection-metadata-dialog
+            orgId=${this.orgId}
+            .authState=${this.authState}
+            .collection=${this.collection!}
+            ?open=${this.openDialogName === "editMetadata"}
+            @sl-hide=${() => (this.openDialogName = undefined)}
+            @btrix-collection-saved=${() => this.fetchCollection()}
+          >
+          </btrix-collection-metadata-dialog>
+        `
+      )}
       ${this.renderShareDialog()}`;
   }
 
@@ -183,7 +238,7 @@ export class CollectionDetail extends LiteElement {
       <btrix-dialog
         .label=${msg("Share Collection")}
         .open=${this.showShareInfo}
-        @sl-request-close=${() => (this.showShareInfo = false)}
+        @sl-hide=${() => (this.showShareInfo = false)}
         style="--width: 32rem;"
       >
         ${
@@ -234,25 +289,21 @@ export class CollectionDetail extends LiteElement {
         <p class="mb-3">
           ${msg("This collection can be viewed by anyone with the link.")}
         </p>
-        <div class="flex items-center rounded border">
-          <div class="text-base">
-            <sl-tooltip content="Open in New Tab">
-              <sl-icon-button
-                href=${publicReplayUrl}
-                name="box-arrow-up-right"
-                target="_blank"
-              >
-              </sl-icon-button>
-            </sl-tooltip>
-          </div>
-          <div class="flex-1 min-w-0 truncate">${publicReplayUrl}</div>
-          <div class="text-base">
-            <btrix-copy-button
-              .getValue=${() => publicReplayUrl}
-              content=${msg("Copy Public URL")}
-            ></btrix-copy-button>
-          </div>
-        </div>
+
+        <btrix-copy-field
+          class="mb-2"
+          .value="${publicReplayUrl}"
+          hideContentFromScreenReaders
+        >
+          <sl-tooltip slot="prefix" content=${msg("Open in New Tab")}>
+            <sl-icon-button
+              href=${publicReplayUrl}
+              name="box-arrow-up-right"
+              target="_blank"
+            >
+            </sl-icon-button>
+          </sl-tooltip>
+        </btrix-copy-field>
       </section>
       <btrix-section-heading>${msg("Embed Collection")}</btrix-section-heading>
       <section class="mt-3">
@@ -357,14 +408,13 @@ export class CollectionDetail extends LiteElement {
           >${msg("Actions")}</sl-button
         >
         <sl-menu>
-          <sl-menu-item
-            @click=${() =>
-              this.navTo(
-                `${this.orgBasePath}/collections/edit/${this.collectionId}`
-              )}
-          >
-            <sl-icon name="gear" slot="prefix"></sl-icon>
-            ${msg("Edit Collection")}
+          <sl-menu-item @click=${() => (this.openDialogName = "editMetadata")}>
+            <sl-icon name="pencil" slot="prefix"></sl-icon>
+            ${msg("Edit Metadata")}
+          </sl-menu-item>
+          <sl-menu-item @click=${() => (this.openDialogName = "editItems")}>
+            <sl-icon name="ui-checks" slot="prefix"></sl-icon>
+            ${msg("Select Archived Items")}
           </sl-menu-item>
           <sl-divider></sl-divider>
           ${!this.collection?.isPublic
@@ -485,8 +535,7 @@ export class CollectionDetail extends LiteElement {
                 <sl-icon-button
                   class="text-base"
                   name="pencil"
-                  href=${`${this.orgBasePath}/collections/edit/${this.collectionId}#metadata`}
-                  @click=${this.navLink}
+                  @click=${() => (this.openDialogName = "editMetadata")}
                   label=${msg("Edit description")}
                 ></sl-icon-button>
               `
@@ -540,11 +589,6 @@ export class CollectionDetail extends LiteElement {
     `;
   }
 
-  private renderOverview = () => html`
-    ${this.renderReplay()}
-    <div class="my-7">${this.renderDescription()}</div>
-  `;
-
   private renderArchivedItems = () => html`<section>
     ${when(
       this.archivedItems,
@@ -592,55 +636,80 @@ export class CollectionDetail extends LiteElement {
     if (!this.archivedItems) return;
 
     return html`
-      <btrix-crawl-list collectionId=${this.collectionId}>
-        ${this.archivedItems.items.map(this.renderArchivedItem)}
-      </btrix-crawl-list>
+      <btrix-archived-item-list>
+        <span slot="actions" class="sr-only">${msg("Row actions")}</span>
+        ${repeat(
+          this.archivedItems.items,
+          ({ id }) => id,
+          this.renderArchivedItem
+        )}
+      </btrix-archived-item-list>
     `;
   }
 
   private renderEmptyState() {
-    if (this.archivedItems?.page && this.archivedItems?.page > 1) {
-      return html`
-        <div class="border-t border-b py-5">
-          <p class="text-center text-neutral-500">
-            ${msg("Could not find page.")}
-          </p>
-        </div>
-      `;
-    }
-
     return html`
-      <div class="border-t border-b py-5">
+      <div class="border rounded p-5">
         <p class="text-center text-neutral-500">
-          ${msg("No matching web captures found.")}
+          ${this.archivedItems?.page && this.archivedItems?.page > 1
+            ? msg("Page not found.")
+            : msg("This Collection doesn’t have any archived items, yet.")}
         </p>
       </div>
     `;
   }
 
-  private renderArchivedItem = (item: Crawl | Upload, idx: number) =>
+  private renderArchivedItem = (item: ArchivedItem, idx: number) =>
     html`
-      <btrix-crawl-list-item
-        orgSlug=${this.appState.orgSlug || ""}
-        .crawl=${item as Crawl}
+      <btrix-archived-item-list-item
+        class="cursor-pointer transition-colors hover:bg-neutral-50 focus-within:bg-neutral-50"
+        .item=${item}
+        role="button"
+        @click=${async (e: MouseEvent) => {
+          e.preventDefault();
+          await this.updateComplete;
+          const href = `/orgs/${this.appState.orgSlug}/items/${item.type}/${item.id}?collectionId=${this.collectionId}`;
+          this.navTo(href);
+        }}
       >
+        <btrix-crawl-status
+          slot="prefix"
+          state=${item.state}
+          hideLabel
+          ?isUpload=${item.type === "upload"}
+        ></btrix-crawl-status>
         ${when(
           this.isCrawler,
           () =>
-            html` <sl-menu slot="menu">
-              <sl-menu-item
-                style="--sl-color-neutral-700: var(--warning)"
-                @click=${() => this.removeArchivedItem(item.id, idx)}
+            html`
+              <btrix-overflow-dropdown
+                slot="actions"
+                @click=${(e: MouseEvent) => {
+                  // Prevent navigation to detail view
+                  e.preventDefault();
+                  e.stopImmediatePropagation();
+                }}
               >
-                <sl-icon name="folder-minus" slot="prefix"></sl-icon>
-                ${msg("Remove from Collection")}
-              </sl-menu-item>
-            </sl-menu>`
+                <sl-menu>
+                  <sl-menu-item
+                    style="--sl-color-neutral-700: var(--warning)"
+                    @click=${() => this.removeArchivedItem(item.id, idx)}
+                  >
+                    <sl-icon name="folder-minus" slot="prefix"></sl-icon>
+                    ${msg("Remove from Collection")}
+                  </sl-menu-item>
+                </sl-menu>
+              </btrix-overflow-dropdown>
+            `
         )}
-      </btrix-crawl-list-item>
+      </btrix-archived-item-list-item>
     `;
 
-  private renderReplay() {
+  private renderReplay = () => {
+    if (!this.collection?.crawlCount) {
+      return this.renderEmptyState();
+    }
+
     const replaySource = `/api/orgs/${this.orgId}/collections/${this.collectionId}/replay.json`;
     const headers = this.authState?.headers;
     const config = JSON.stringify({ headers });
@@ -648,22 +717,17 @@ export class CollectionDetail extends LiteElement {
     return html`<section>
       <main>
         <div class="aspect-4/3 border rounded-lg overflow-hidden">
-          ${guard(
-            [replaySource],
-            () => html`
-              <replay-web-page
-                source=${replaySource}
-                replayBase="/replay/"
-                config="${config}"
-                noSandbox="true"
-                noCache="true"
-              ></replay-web-page>
-            `
-          )}
+          <replay-web-page
+            source=${replaySource}
+            replayBase="/replay/"
+            config="${config}"
+            noSandbox="true"
+            noCache="true"
+          ></replay-web-page>
         </div>
       </main>
     </section>`;
-  }
+  };
 
   private async checkTruncateDescription() {
     await this.updateComplete;
@@ -827,13 +891,7 @@ export class CollectionDetail extends LiteElement {
         }
       );
 
-      const { page, items, total } = this.archivedItems!;
-      // Update state for immediate feedback while retrieving list
-      this.archivedItems = {
-        ...this.archivedItems!,
-        total: total - 1,
-        items: [...items.slice(0, pageIndex), ...items.slice(pageIndex + 1)],
-      };
+      const { page, items } = this.archivedItems!;
 
       this.notify({
         message: msg(str`Successfully removed item from Collection.`),

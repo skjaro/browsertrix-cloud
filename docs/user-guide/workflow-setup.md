@@ -152,9 +152,19 @@ Waits on the page for a set period of time after any behaviors have finished run
 
 Sets the [_Browser Profile_](../browser-profiles) to be used for this crawl.
 
+### Crawler Release Channel
+
+Sets the release channel of [Browsertrix Crawler](https://github.com/webrecorder/browsertrix-crawler) to be used for this crawl. Crawls started by this workflow will use the latest crawler version from the selected release channel. Generally "Default" will be the most stable, however others may have newer features (or bugs)!  
+
+This setting will only be shown if multiple different release channels are available for use.
+
 ### Block Ads by Domain
 
 Will prevent any content from the domains listed in [Steven Black's Unified Hosts file](https://github.com/StevenBlack/hosts) (ads & malware) from being captured by the crawler.
+
+### User Agent
+
+Sets the browser's user agent in outgoing requests to the specified value. If left blank, the crawler will use the browser's default user agent.
 
 ### Language
 

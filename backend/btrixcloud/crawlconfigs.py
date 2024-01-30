@@ -6,6 +6,7 @@ Crawl Config API handling
 from typing import List, Union, Optional, Tuple, TYPE_CHECKING, cast
 
 import asyncio
+import json
 import re
 import os
 from datetime import datetime
@@ -28,6 +29,8 @@ from .models import (
     User,
     PaginatedResponse,
     FAILED_STATES,
+    CrawlerChannel,
+    CrawlerChannels,
 )
 from .utils import dt_now
 
@@ -66,6 +69,9 @@ class CrawlConfigOps:
     crawl_ops: CrawlOps
     coll_ops: CollectionOps
 
+    crawler_channels: CrawlerChannels
+    crawler_images_map: dict[str, str]
+
     def __init__(
         self,
         dbclient,
@@ -96,6 +102,20 @@ class CrawlConfigOps:
         )
 
         self._file_rx = re.compile("\\W+")
+
+        self.crawler_images_map = {}
+        channels = []
+        with open(os.environ["CRAWLER_CHANNELS_JSON"], encoding="utf-8") as fh:
+            crawler_list: list[dict] = json.loads(fh.read())
+            for channel_data in crawler_list:
+                channel = CrawlerChannel(**channel_data)
+                channels.append(channel)
+                self.crawler_images_map[channel.id] = channel.image
+
+            self.crawler_channels = CrawlerChannels(channels=channels)
+
+        if "default" not in self.crawler_images_map:
+            raise TypeError("The channel list must include a 'default' channel")
 
     def set_crawl_ops(self, ops):
         """set crawl ops reference"""
@@ -182,6 +202,9 @@ class CrawlConfigOps:
         if config.autoAddCollections:
             data["autoAddCollections"] = config.autoAddCollections
 
+        if not self.get_channel_crawler_image(config.crawlerChannel):
+            raise HTTPException(status_code=404, detail="crawler_not_found")
+
         result = await self.crawl_configs.insert_one(data)
 
         crawlconfig = CrawlConfig.from_dict(data)
@@ -254,6 +277,28 @@ class CrawlConfigOps:
 
         return False
 
+    async def readd_configmap(
+        self,
+        crawlconfig: CrawlConfig,
+        org: Organization,
+        profile_filename: Optional[str] = None,
+    ) -> None:
+        """readd configmap that may have been deleted / is invalid"""
+
+        if profile_filename is None:
+            _, profile_filename = await self._lookup_profile(crawlconfig.profileid, org)
+
+        if not self.get_channel_crawler_image(crawlconfig.crawlerChannel):
+            raise HTTPException(status_code=404, detail="crawler_not_found")
+
+        await self.crawl_manager.add_crawl_config(
+            crawlconfig=crawlconfig,
+            storage=org.storage,
+            run_now=False,
+            out_filename=self.default_filename_template,
+            profile_filename=profile_filename or "",
+        )
+
     async def update_crawl_config(
         self, cid: UUID, org: Organization, user: User, update: UpdateCrawlConfig
     ) -> dict[str, bool]:
@@ -287,6 +332,10 @@ class CrawlConfigOps:
             update.profileid is not None
             and update.profileid != orig_crawl_config.profileid
             and ((not update.profileid) != (not orig_crawl_config.profileid))
+        )
+
+        changed = changed or self.check_attr_changed(
+            orig_crawl_config, update, "crawlerChannel"
         )
 
         metadata_changed = self.check_attr_changed(orig_crawl_config, update, "name")
@@ -352,6 +401,9 @@ class CrawlConfigOps:
                 await self.crawl_manager.update_crawl_config(
                     crawlconfig, update, profile_filename
                 )
+            except FileNotFoundError:
+                await self.readd_configmap(crawlconfig, org, profile_filename)
+
             except Exception as exc:
                 print(exc, flush=True)
                 # pylint: disable=raise-missing-from
@@ -776,12 +828,9 @@ class CrawlConfigOps:
         # ensure crawlconfig exists
         try:
             await self.crawl_manager.get_configmap(crawlconfig.id)
+        # pylint: disable=bare-except
         except:
-            # pylint: disable=broad-exception-raised,raise-missing-from
-            raise HTTPException(
-                status_code=404,
-                detail=f"crawl-config-{cid} missing, can not start crawl",
-            )
+            await self.readd_configmap(crawlconfig, org)
 
         if await self.org_ops.storage_quota_reached(org.id):
             raise HTTPException(status_code=403, detail="storage_quota_reached")
@@ -840,6 +889,12 @@ class CrawlConfigOps:
         # pylint: disable=broad-exception-caught
         except Exception:
             return [], 0
+
+    def get_channel_crawler_image(
+        self, crawler_channel: Optional[str]
+    ) -> Optional[str]:
+        """Get crawler image name by id"""
+        return self.crawler_images_map.get(crawler_channel or "")
 
 
 # ============================================================================
@@ -988,6 +1043,13 @@ def init_crawl_config_api(
         org: Organization = Depends(org_viewer_dep),
     ):
         return await ops.get_crawl_config_search_values(org)
+
+    @router.get("/crawler-channels", response_model=CrawlerChannels)
+    async def get_crawler_channels(
+        # pylint: disable=unused-argument
+        org: Organization = Depends(org_crawl_dep),
+    ):
+        return ops.crawler_channels
 
     @router.get("/{cid}/seeds", response_model=PaginatedResponse)
     async def get_crawl_config_seeds(

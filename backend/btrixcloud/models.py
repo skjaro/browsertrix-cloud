@@ -255,6 +255,8 @@ class RawCrawlConfig(BaseModel):
     logging: Optional[str] = None
     behaviors: Optional[str] = "autoscroll,autoplay,autofetch,siteSpecific"
 
+    userAgent: Optional[str] = None
+
 
 # ============================================================================
 class CrawlConfigIn(BaseModel):
@@ -272,6 +274,7 @@ class CrawlConfigIn(BaseModel):
     jobType: Optional[JobType] = JobType.CUSTOM
 
     profileid: Union[UUID, EmptyStr, None]
+    crawlerChannel: str = "default"
 
     autoAddCollections: Optional[List[UUID]] = []
     tags: Optional[List[str]] = []
@@ -294,6 +297,7 @@ class ConfigRevision(BaseMongoModel):
     config: RawCrawlConfig
 
     profileid: Optional[UUID]
+    crawlerChannel: Optional[str]
 
     crawlTimeout: Optional[int] = 0
     maxCrawlSize: Optional[int] = 0
@@ -323,6 +327,7 @@ class CrawlConfigCore(BaseMongoModel):
     oid: UUID
 
     profileid: Optional[UUID]
+    crawlerChannel: Optional[str] = None
 
 
 # ============================================================================
@@ -413,11 +418,32 @@ class UpdateCrawlConfig(BaseModel):
     # crawl data: revision tracked
     schedule: Optional[str] = None
     profileid: Union[UUID, EmptyStr, None] = None
+    crawlerChannel: Optional[str] = None
     crawlTimeout: Optional[int] = None
     maxCrawlSize: Optional[int] = None
     scale: Optional[conint(ge=1, le=MAX_CRAWL_SCALE)] = None  # type: ignore
     crawlFilenameTemplate: Optional[str] = None
     config: Optional[RawCrawlConfig] = None
+
+
+# ============================================================================
+
+### CRAWLER VERSIONS ###
+
+
+# ============================================================================
+class CrawlerChannel(BaseModel):
+    """Crawler version available to use in workflows"""
+
+    id: str
+    image: str
+
+
+# ============================================================================
+class CrawlerChannels(BaseModel):
+    """List of CrawlerChannel instances for API"""
+
+    channels: List[CrawlerChannel] = []
 
 
 # ============================================================================
@@ -551,6 +577,8 @@ class CrawlOut(BaseMongoModel):
     userName: Optional[str]
     oid: UUID
 
+    profileid: Optional[UUID]
+
     name: Optional[str]
     description: Optional[str]
 
@@ -581,9 +609,13 @@ class CrawlOut(BaseMongoModel):
     stopping: Optional[bool]
     manual: Optional[bool]
     cid_rev: Optional[int]
+    scale: Optional[conint(ge=1, le=MAX_CRAWL_SCALE)]  # type: ignore
 
     storageQuotaReached: Optional[bool]
     execMinutesQuotaReached: Optional[bool]
+
+    crawlerChannel: str = "default"
+    image: Optional[str]
 
 
 # ============================================================================
@@ -641,6 +673,8 @@ class Crawl(BaseCrawl, CrawlConfigCore):
     stopping: Optional[bool] = False
 
     crawlExecSeconds: int = 0
+
+    image: Optional[str]
 
 
 # ============================================================================
@@ -817,6 +851,16 @@ class OrgQuotas(BaseModel):
     maxPagesPerCrawl: Optional[int] = 0
     storageQuota: Optional[int] = 0
     maxExecMinutesPerMonth: Optional[int] = 0
+    extraExecMinutes: Optional[int] = 0
+    giftedExecMinutes: Optional[int] = 0
+
+
+# ============================================================================
+class OrgQuotaUpdate(BaseModel):
+    """Organization quota update (to track changes over time)"""
+
+    modified: datetime
+    update: OrgQuotas
 
 
 # ============================================================================
@@ -841,8 +885,7 @@ class OrgOut(BaseMongoModel):
     name: str
     slug: str
     users: Optional[Dict[str, Any]]
-    usage: Optional[Dict[str, int]]
-    crawlExecSeconds: Optional[Dict[str, int]]
+
     default: bool = False
     bytesStored: int
     bytesStoredCrawls: int
@@ -850,11 +893,22 @@ class OrgOut(BaseMongoModel):
     bytesStoredProfiles: int
     origin: Optional[AnyHttpUrl] = None
 
-    webhookUrls: Optional[OrgWebhookUrls] = OrgWebhookUrls()
-    quotas: Optional[OrgQuotas] = OrgQuotas()
-
     storageQuotaReached: Optional[bool]
     execMinutesQuotaReached: Optional[bool]
+
+    usage: Optional[Dict[str, int]]
+    crawlExecSeconds: Dict[str, int] = {}
+    monthlyExecSeconds: Dict[str, int] = {}
+    extraExecSeconds: Dict[str, int] = {}
+    giftedExecSeconds: Dict[str, int] = {}
+
+    extraExecSecondsAvailable: int = 0
+    giftedExecSecondsAvailable: int = 0
+
+    quotas: Optional[OrgQuotas] = OrgQuotas()
+    quotaUpdates: Optional[List[OrgQuotaUpdate]] = []
+
+    webhookUrls: Optional[OrgWebhookUrls] = OrgWebhookUrls()
 
 
 # ============================================================================
@@ -862,29 +916,32 @@ class Organization(BaseMongoModel):
     """Organization Base Model"""
 
     id: UUID
-
     name: str
     slug: str
-
     users: Dict[str, UserRole]
 
+    default: bool = False
+
     storage: StorageRef
-
     storageReplicas: List[StorageRef] = []
-
     customStorages: Dict[str, S3Storage] = {}
-
-    usage: Dict[str, int] = {}
-    crawlExecSeconds: Dict[str, int] = {}
 
     bytesStored: int = 0
     bytesStoredCrawls: int = 0
     bytesStoredUploads: int = 0
     bytesStoredProfiles: int = 0
 
-    default: bool = False
+    usage: Dict[str, int] = {}
+    crawlExecSeconds: Dict[str, int] = {}
+    monthlyExecSeconds: Dict[str, int] = {}
+    extraExecSeconds: Dict[str, int] = {}
+    giftedExecSeconds: Dict[str, int] = {}
+
+    extraExecSecondsAvailable: int = 0
+    giftedExecSecondsAvailable: int = 0
 
     quotas: Optional[OrgQuotas] = OrgQuotas()
+    quotaUpdates: Optional[List[OrgQuotaUpdate]] = []
 
     webhookUrls: Optional[OrgWebhookUrls] = OrgWebhookUrls()
 
@@ -1060,6 +1117,7 @@ class Profile(BaseMongoModel):
 
     created: Optional[datetime]
     baseid: Optional[UUID] = None
+    crawlerChannel: Optional[str]
 
 
 # ============================================================================
@@ -1081,6 +1139,7 @@ class ProfileLaunchBrowserIn(UrlIn):
     """Request to launch new browser for creating profile"""
 
     profileId: Optional[UUID] = None
+    crawlerChannel: str = "default"
 
 
 # ============================================================================
@@ -1097,6 +1156,7 @@ class ProfileCreate(BaseModel):
     browserid: str
     name: str
     description: Optional[str] = ""
+    crawlerChannel: str = "default"
 
 
 # ============================================================================

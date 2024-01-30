@@ -4,13 +4,13 @@ import { when } from "lit/directives/when.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import queryString from "query-string";
 
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
 import type { ListWorkflow, Seed, Workflow, WorkflowParams } from "./types";
-import { CopyButton } from "../../components/copy-button";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { SlCheckbox } from "@shoelace-style/shoelace";
-import type { APIPaginatedList, APIPaginationQuery } from "../../types/api";
-import type { PageChangeEvent } from "../../components/pagination";
+import type { APIPaginatedList, APIPaginationQuery } from "@/types/api";
+import type { PageChangeEvent } from "@/components/ui/pagination";
 import type { SelectNewDialogEvent } from "./index";
 
 type SearchFields = "name" | "firstSeed";
@@ -294,7 +294,7 @@ export class WorkflowsList extends LiteElement {
       <div class="flex flex-wrap items-center justify-between">
         <div class="text-sm">
           <button
-            class="inline-block font-medium border-2 border-transparent ${this
+            class="inline-block font-medium border-b-2 border-transparent ${this
               .filterBy.schedule === undefined
               ? "border-b-current text-primary"
               : "text-neutral-500"} mr-3"
@@ -308,7 +308,7 @@ export class WorkflowsList extends LiteElement {
             ${msg("All")}
           </button>
           <button
-            class="inline-block font-medium border-2 border-transparent ${this
+            class="inline-block font-medium border-b-2 border-transparent ${this
               .filterBy.schedule === true
               ? "border-b-current text-primary"
               : "text-neutral-500"} mr-3"
@@ -322,7 +322,7 @@ export class WorkflowsList extends LiteElement {
             ${msg("Scheduled")}
           </button>
           <button
-            class="inline-block font-medium border-2 border-transparent ${this
+            class="inline-block font-medium border-b-2 border-transparent ${this
               .filterBy.schedule === false
               ? "border-b-current text-primary"
               : "text-neutral-500"} mr-3"
@@ -360,13 +360,13 @@ export class WorkflowsList extends LiteElement {
         .keyLabels=${WorkflowsList.FieldLabels}
         selectedKey=${ifDefined(this.selectedSearchFilterKey)}
         placeholder=${msg("Search all Workflows by name or Crawl Start URL")}
-        @on-select=${(e: CustomEvent) => {
+        @btrix-select=${(e: CustomEvent) => {
           const { key, value } = e.detail;
           this.filterBy = {
             [key]: value,
           };
         }}
-        @on-clear=${() => {
+        @btrix-clear=${() => {
           const {
             name: _name,
             firstSeed: _firstSeed,

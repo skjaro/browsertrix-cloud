@@ -4,14 +4,14 @@ import { msg, localized } from "@lit/localize";
 import type { SlSelect } from "@shoelace-style/shoelace";
 import queryString from "query-string";
 
-import type { PageChangeEvent } from "../components/pagination";
-import { CrawlStatus } from "../components/crawl-status";
-import type { AuthState } from "../utils/AuthService";
-import LiteElement, { html } from "../utils/LiteElement";
-import { needLogin } from "../utils/auth";
-import { activeCrawlStates } from "../utils/crawler";
-import type { Crawl, CrawlState } from "../types/crawler";
-import type { APIPaginationQuery, APIPaginatedList } from "../types/api";
+import type { PageChangeEvent } from "@/components/ui/pagination";
+import { CrawlStatus } from "@/features/archived-items/crawl-status";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { needLogin } from "@/utils/auth";
+import { activeCrawlStates } from "@/utils/crawler";
+import type { Crawl, CrawlState } from "@/types/crawler";
+import type { APIPaginationQuery, APIPaginatedList } from "@/types/api";
 import "./org/workflow-detail";
 import "./org/crawls-list";
 
@@ -36,9 +36,9 @@ const sortableFields: Record<
 };
 const ABORT_REASON_THROTTLE = "throttled";
 
-@needLogin
 @localized()
 @customElement("btrix-crawls")
+@needLogin
 export class Crawls extends LiteElement {
   @property({ type: Object })
   authState!: AuthState;
@@ -99,7 +99,7 @@ export class Crawls extends LiteElement {
 
   render() {
     return html` <div
-      class="w-full max-w-screen-lg mx-auto px-3 py-4 box-border"
+      class="w-full max-w-screen-desktop mx-auto px-3 py-4 box-border"
     >
       ${this.crawlId
         ? // Render loading indicator while preparing to redirect
@@ -183,7 +183,7 @@ export class Crawls extends LiteElement {
             size="small"
             pill
             multiple
-            maxOptionsVisible="1"
+            max-options-visible="1"
             placeholder=${viewPlaceholder}
             @sl-change=${async (e: CustomEvent) => {
               const value = (e.target as SlSelect).value as CrawlState[];

@@ -1,3 +1,4 @@
+// cSpell:ignore glitchtip
 // webpack.config.js
 const path = require("path");
 const webpack = require("webpack");
@@ -5,6 +6,7 @@ const ESLintPlugin = require("eslint-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
 const ForkTsCheckerWebpackPlugin = require("fork-ts-checker-webpack-plugin");
+const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
 const childProcess = require("child_process");
 const packageJSON = require("./package.json");
 const fs = require("fs");
@@ -80,25 +82,47 @@ const main = {
       {
         test: /\.ts$/,
         include: path.resolve(__dirname, "src"),
-        loader: "ts-loader",
+        use: [
+          {
+            loader: "postcss-loader",
+            options: {
+              /** @type {import('postcss-load-config').Config} */
+              postcssOptions: {
+                syntax: "postcss-lit",
+                plugins: [["tailwindcss"], ["autoprefixer"]],
+              },
+            },
+          },
+          {
+            loader: "ts-loader",
+            options: {
+              onlyCompileBundledFiles: true,
+              transpileOnly: true,
+            },
+          },
+        ],
         exclude: /node_modules/,
-        options: {
-          onlyCompileBundledFiles: true,
-          transpileOnly: true,
-        },
       },
       {
+        // Non-theme styles and assets like fonts and Shoelace
         test: /\.css$/,
         include: [
           path.resolve(__dirname, "src"),
           path.resolve(__dirname, "node_modules/@shoelace-style/shoelace"),
-          path.resolve(__dirname, "node_modules/tailwindcss"),
         ],
+        exclude: [path.resolve(__dirname, "src/theme.css")],
         use: [
           "style-loader",
           { loader: "css-loader", options: { importLoaders: 1 } },
           "postcss-loader",
         ],
+      },
+      {
+        // Theme CSS loaded as raw string and used as a CSSStyleSheet
+        test: /theme\.css$/,
+        type: "asset/source",
+        include: [path.resolve(__dirname, "src")],
+        use: ["postcss-loader"],
       },
       {
         test: /\.html$/,
@@ -115,6 +139,7 @@ const main = {
 
   resolve: {
     extensions: [".ts", ".js"],
+    plugins: [new TsconfigPathsPlugin()],
   },
 
   plugins: [
@@ -127,7 +152,11 @@ const main = {
     }),
 
     new ForkTsCheckerWebpackPlugin({
-      typescript: { configOverwrite: { exclude: ["**/*.test.ts"] } },
+      typescript: {
+        configOverwrite: {
+          exclude: ["**/*.test.ts", "tests/**/*.ts", "playwright.config.ts"],
+        },
+      },
     }),
 
     new HtmlWebpackPlugin({
@@ -171,6 +200,9 @@ const main = {
         },
       ],
     }),
+    ...(process.env.BUNDLE_ANALYZER
+      ? [new (require("webpack-bundle-analyzer").BundleAnalyzerPlugin)()]
+      : []),
   ],
 };
 

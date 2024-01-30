@@ -7,15 +7,13 @@ import Fuse from "fuse.js";
 import debounce from "lodash/fp/debounce";
 import type { SlMenuItem } from "@shoelace-style/shoelace";
 
-import type { PageChangeEvent } from "../../components/pagination";
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
-import type { APIPaginatedList, APIPaginationQuery } from "../../types/api";
-import type {
-  Collection,
-  CollectionSearchValues,
-} from "../../types/collection";
-import noCollectionsImg from "../../assets/images/no-collections-found.webp";
+import type { PageChangeEvent } from "@/components/ui/pagination";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
+import type { APIPaginatedList, APIPaginationQuery } from "@/types/api";
+import type { Collection, CollectionSearchValues } from "@/types/collection";
+import type { CollectionSavedEvent } from "@/features/collections/collection-metadata-dialog";
+import noCollectionsImg from "~assets/images/no-collections-found.webp";
 import type { SelectNewDialogEvent } from "./index";
 
 type Collections = APIPaginatedList<Collection>;
@@ -28,7 +26,7 @@ type SearchResult = {
 };
 type SortField = "modified" | "name" | "totalSize";
 type SortDirection = "asc" | "desc";
-const INITIAL_PAGE_SIZE = 10;
+const INITIAL_PAGE_SIZE = 20;
 const sortableFields: Record<
   SortField,
   { label: string; defaultDirection?: SortDirection }
@@ -82,13 +80,13 @@ export class CollectionsList extends LiteElement {
   private searchResultsOpen = false;
 
   @state()
-  private openDialogName?: "delete";
+  private openDialogName?: "create" | "delete" | "editMetadata";
 
   @state()
   private isDialogVisible: boolean = false;
 
   @state()
-  private collectionToDelete?: Collection;
+  private selectedCollection?: Collection;
 
   @state()
   private fetchErrorStatusCode?: number;
@@ -134,13 +132,7 @@ export class CollectionsList extends LiteElement {
               <sl-button
                 variant="primary"
                 size="small"
-                @click=${() => {
-                  this.dispatchEvent(
-                    <SelectNewDialogEvent>new CustomEvent("select-new-dialog", {
-                      detail: "collection",
-                    })
-                  );
-                }}
+                @click=${() => (this.openDialogName = "create")}
               >
                 <sl-icon slot="prefix" name="plus-lg"></sl-icon>
                 ${msg("New Collection")}
@@ -167,30 +159,51 @@ export class CollectionsList extends LiteElement {
       <btrix-dialog
         .label=${msg("Delete Collection?")}
         .open=${this.openDialogName === "delete"}
-        @sl-request-close=${() => (this.openDialogName = undefined)}
+        @sl-hide=${() => (this.openDialogName = undefined)}
         @sl-after-hide=${() => (this.isDialogVisible = false)}
       >
         ${msg(
           html`Are you sure you want to delete
-            <strong>${this.collectionToDelete?.name}</strong>?`
+            <strong>${this.selectedCollection?.name}</strong>?`
         )}
         <div slot="footer" class="flex justify-between">
           <sl-button
             size="small"
             @click=${() => (this.openDialogName = undefined)}
-            >Cancel</sl-button
+            >${msg("Cancel")}</sl-button
           >
           <sl-button
             size="small"
             variant="primary"
             @click=${async () => {
-              await this.deleteCollection(this.collectionToDelete!);
+              await this.deleteCollection(this.selectedCollection!);
               this.openDialogName = undefined;
             }}
-            >Delete Collection</sl-button
+            >${msg("Delete Collection")}</sl-button
           >
         </div>
       </btrix-dialog>
+      <btrix-collection-metadata-dialog
+        orgId=${this.orgId}
+        .authState=${this.authState}
+        .collection=${this.openDialogName === "create"
+          ? undefined
+          : this.selectedCollection}
+        ?open=${this.openDialogName === "create" ||
+        this.openDialogName === "editMetadata"}
+        @sl-hide=${() => (this.openDialogName = undefined)}
+        @sl-after-hide=${() => (this.selectedCollection = undefined)}
+        @btrix-collection-saved=${(e: CollectionSavedEvent) => {
+          if (this.openDialogName === "create") {
+            this.navTo(
+              `${this.orgBasePath}/collections/view/${e.detail.id}/items`
+            );
+          } else {
+            this.fetchCollections();
+          }
+        }}
+      >
+      </btrix-collection-metadata-dialog>
     `;
   }
 
@@ -377,20 +390,34 @@ export class CollectionsList extends LiteElement {
   private renderList = () => {
     if (this.collections?.items.length) {
       return html`
-        <header class="py-2 text-neutral-600 leading-none">
-          <div
-            class="hidden md:grid md:grid-cols-[2rem_1fr_repeat(3,12ch)_18ch_2.5rem] gap-3"
-          >
-            <div class="col-span-2 text-xs pl-12">${msg("Name")}</div>
-            <div class="col-span-1 text-xs">${msg("Archived Items")}</div>
-            <div class="col-span-1 text-xs">${msg("Total Size")}</div>
-            <div class="col-span-1 text-xs">${msg("Total Pages")}</div>
-            <div class="col-span-2 text-xs">${msg("Last Updated")}</div>
-          </div>
-        </header>
-        <ul class="contents">
-          ${this.collections.items.map(this.renderItem)}
-        </ul>
+        <btrix-table
+          style="--btrix-table-grid-auto-columns: min-content 24rem 1fr 1fr 1fr 12rem min-content"
+        >
+          <btrix-table-head class="mb-2">
+            <btrix-table-header-cell>
+              <span class="sr-only">${msg("Collection Access")}</span>
+            </btrix-table-header-cell>
+            <btrix-table-header-cell>${msg("Name")}</btrix-table-header-cell>
+            <btrix-table-header-cell>
+              ${msg("Archived Items")}
+            </btrix-table-header-cell>
+            <btrix-table-header-cell>
+              ${msg("Total Size")}
+            </btrix-table-header-cell>
+            <btrix-table-header-cell>
+              ${msg("Total Pages")}
+            </btrix-table-header-cell>
+            <btrix-table-header-cell>
+              ${msg("Last Updated")}
+            </btrix-table-header-cell>
+            <btrix-table-header-cell>
+              <span class="sr-only">${msg("Row Actions")}</span>
+            </btrix-table-header-cell>
+          </btrix-table-head>
+          <btrix-table-body style="--btrix-row-gap: var(--sl-spacing-x-small)">
+            ${this.collections.items.map(this.renderItem)}
+          </btrix-table-body>
+        </btrix-table>
 
         ${when(
           this.collections.total > this.collections.pageSize ||
@@ -457,81 +484,69 @@ export class CollectionsList extends LiteElement {
   };
 
   private renderItem = (col: Collection) =>
-    html`<li class="mb-2 last:mb-0">
-      <div class="block border rounded leading-none">
-        <div
-          class="relative p-3 md:p-0 grid grid-cols-1 md:grid-cols-[2rem_1fr_repeat(3,12ch)_18ch_2.5rem] gap-3 lg:h-10 items-center"
-        >
-          <div class="col-span-1 md:pl-3 text-base text-neutral-500">
-            ${col?.isPublic
-              ? html`
-                  <sl-tooltip content=${msg("Shareable")}>
-                    <sl-icon
-                      class="inline-block align-middle"
-                      name="people-fill"
-                      label=${msg("Shareable Collection")}
-                    ></sl-icon>
-                  </sl-tooltip>
-                `
-              : html`
-                  <sl-tooltip content=${msg("Private")}>
-                    <sl-icon
-                      class="inline-block align-middle"
-                      name="eye-slash-fill"
-                      label=${msg("Private Collection")}
-                    ></sl-icon>
-                  </sl-tooltip>
-                `}
-          </div>
-          <div class="col-span-1 truncate font-semibold">
-            <a
-              href=${`${this.orgBasePath}/collections/view/${col.id}`}
-              class="block text-primary hover:text-indigo-500"
-              @click=${this.navLink}
-            >
-              ${col.name}
-            </a>
-          </div>
-          <div
-            class="col-span-1 truncate text-xs text-neutral-500 font-monostyle"
+    html`
+      <btrix-table-row class="border rounded">
+        <btrix-table-cell class="p-3">
+          ${col?.isPublic
+            ? html`
+                <sl-tooltip content=${msg("Shareable")}>
+                  <sl-icon
+                    class="inline-block align-middle"
+                    name="people-fill"
+                    label=${msg("Shareable Collection")}
+                  ></sl-icon>
+                </sl-tooltip>
+              `
+            : html`
+                <sl-tooltip content=${msg("Private")}>
+                  <sl-icon
+                    class="inline-block align-middle"
+                    name="eye-slash-fill"
+                    label=${msg("Private Collection")}
+                  ></sl-icon>
+                </sl-tooltip>
+              `}
+        </btrix-table-cell>
+        <btrix-table-cell>
+          <a
+            href=${`${this.orgBasePath}/collections/view/${col.id}`}
+            class="block text-primary hover:text-indigo-500"
+            @click=${this.navLink}
           >
-            ${col.crawlCount === 1
-              ? msg("1 item")
-              : msg(str`${this.numberFormatter.format(col.crawlCount)} items`)}
-          </div>
-          <div
-            class="col-span-1 truncate text-xs text-neutral-500 font-monostyle"
-          >
-            <sl-format-bytes
-              value=${col.totalSize || 0}
-              display="narrow"
-            ></sl-format-bytes>
-          </div>
-          <div
-            class="col-span-1 truncate text-xs text-neutral-500 font-monostyle"
-          >
-            ${col.pageCount === 1
-              ? msg("1 page")
-              : msg(str`${this.numberFormatter.format(col.pageCount)} pages`)}
-          </div>
-          <div class="col-span-1 text-xs text-neutral-500 font-monostyle">
-            <sl-format-date
-              date=${`${col.modified}Z`}
-              month="2-digit"
-              day="2-digit"
-              year="2-digit"
-              hour="2-digit"
-              minute="2-digit"
-            ></sl-format-date>
-          </div>
-          <div
-            class="actionsCol absolute top-0 right-0 md:relative col-span-1 flex items-center justify-center"
-          >
-            ${this.isCrawler ? this.renderActions(col) : ""}
-          </div>
-        </div>
-      </div>
-    </li>`;
+            ${col.name}
+          </a>
+        </btrix-table-cell>
+        <btrix-table-cell>
+          ${col.crawlCount === 1
+            ? msg("1 item")
+            : msg(str`${this.numberFormatter.format(col.crawlCount)} items`)}
+        </btrix-table-cell>
+        <btrix-table-cell>
+          <sl-format-bytes
+            value=${col.totalSize || 0}
+            display="narrow"
+          ></sl-format-bytes>
+        </btrix-table-cell>
+        <btrix-table-cell>
+          ${col.pageCount === 1
+            ? msg("1 page")
+            : msg(str`${this.numberFormatter.format(col.pageCount)} pages`)}
+        </btrix-table-cell>
+        <btrix-table-cell>
+          <sl-format-date
+            date=${`${col.modified}Z`}
+            month="2-digit"
+            day="2-digit"
+            year="2-digit"
+            hour="2-digit"
+            minute="2-digit"
+          ></sl-format-date>
+        </btrix-table-cell>
+        <btrix-table-cell>
+          ${this.isCrawler ? this.renderActions(col) : ""}
+        </btrix-table-cell>
+      </btrix-table-row>
+    `;
 
   private renderActions = (col: Collection) => {
     const authToken = this.authState!.headers.Authorization.split(" ")[1];
@@ -543,11 +558,10 @@ export class CollectionsList extends LiteElement {
         </btrix-button>
         <sl-menu>
           <sl-menu-item
-            @click=${() =>
-              this.navTo(`${this.orgBasePath}/collections/edit/${col.id}`)}
+            @click=${() => this.manageCollection(col, "editMetadata")}
           >
-            <sl-icon name="gear" slot="prefix"></sl-icon>
-            ${msg("Edit Collection")}
+            <sl-icon name="pencil" slot="prefix"></sl-icon>
+            ${msg("Edit Metadata")}
           </sl-menu-item>
           <sl-divider></sl-divider>
           ${!col?.isPublic
@@ -597,7 +611,7 @@ export class CollectionsList extends LiteElement {
           <sl-divider></sl-divider>
           <sl-menu-item
             style="--sl-color-neutral-700: var(--danger)"
-            @click=${() => this.confirmDelete(col)}
+            @click=${() => this.manageCollection(col, "delete")}
           >
             <sl-icon name="trash3" slot="prefix"></sl-icon>
             ${msg("Delete Collection")}
@@ -650,9 +664,13 @@ export class CollectionsList extends LiteElement {
     ).href;
   }
 
-  private confirmDelete = (collection: Collection) => {
-    this.collectionToDelete = collection;
-    this.openDialogName = "delete";
+  private manageCollection = async (
+    collection: Collection,
+    dialogName: CollectionsList["openDialogName"]
+  ) => {
+    this.selectedCollection = collection;
+    await this.updateComplete;
+    this.openDialogName = dialogName;
   };
 
   private async deleteCollection(collection: Collection): Promise<void> {
@@ -667,7 +685,7 @@ export class CollectionsList extends LiteElement {
         }
       );
 
-      this.collectionToDelete = undefined;
+      this.selectedCollection = undefined;
       this.fetchCollections();
 
       this.notify({

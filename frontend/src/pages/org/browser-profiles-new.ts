@@ -2,8 +2,8 @@ import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized, str } from "@lit/localize";
 import { ifDefined } from "lit/directives/if-defined.js";
 
-import type { AuthState } from "../../utils/AuthService";
-import LiteElement, { html } from "../../utils/LiteElement";
+import type { AuthState } from "@/utils/AuthService";
+import LiteElement, { html } from "@/utils/LiteElement";
 
 /**
  * Usage:
@@ -41,6 +41,7 @@ export class BrowserProfilesNew extends LiteElement {
     description: string;
     navigateUrl: string;
     profileId: string | null;
+    crawlerChannel: string;
   }> = {};
 
   firstUpdated() {
@@ -52,6 +53,7 @@ export class BrowserProfilesNew extends LiteElement {
       description: params.get("description") || "",
       navigateUrl: params.get("navigateUrl") || "",
       profileId: profileId || null,
+      crawlerChannel: params.get("crawlerChannel") || "default",
     };
   }
 
@@ -152,7 +154,7 @@ export class BrowserProfilesNew extends LiteElement {
         <sl-textarea
           name="description"
           label=${msg("Description")}
-          helpText=${msg("Optional profile description")}
+          help-text=${msg("Optional profile description")}
           placeholder=${msg("Example (example.com) login profile", {
             desc: "Example browser profile name",
           })}
@@ -193,6 +195,7 @@ export class BrowserProfilesNew extends LiteElement {
       browserid: this.browserId,
       name: formData.get("name"),
       description: formData.get("description"),
+      crawlerChannel: this.params.crawlerChannel,
     };
 
     try {

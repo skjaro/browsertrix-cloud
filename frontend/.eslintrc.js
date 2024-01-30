@@ -22,14 +22,19 @@ module.exports = {
     "no-restricted-globals": [2, "event", "error"],
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [
-      "error",
+      "warn",
       {
         argsIgnorePattern: "^_",
         varsIgnorePattern: "^_",
         destructuredArrayIgnorePattern: "^_",
       },
     ],
-    "@typescript-eslint/consistent-type-imports": "error",
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      {
+        fixStyle: "inline-type-imports",
+      },
+    ],
     "@typescript-eslint/consistent-type-exports": "error",
     "@typescript-eslint/no-explicit-any": "warn",
   },

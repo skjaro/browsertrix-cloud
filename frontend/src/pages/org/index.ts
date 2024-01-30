@@ -3,32 +3,26 @@ import { msg, localized, str } from "@lit/localize";
 import { when } from "lit/directives/when.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 
-import type { ViewState } from "../../utils/APIRouter";
-import type { AuthState } from "../../utils/AuthService";
-import type { CurrentUser } from "../../types/user";
-import type { Crawl, JobType } from "../../types/crawler";
-import type { OrgData } from "../../utils/orgs";
-import { isAdmin, isCrawler } from "../../utils/orgs";
-import LiteElement, { html } from "../../utils/LiteElement";
-import { needLogin } from "../../utils/auth";
+import type { ViewState } from "@/utils/APIRouter";
+import type { AuthState } from "@/utils/AuthService";
+import type { CurrentUser } from "@/types/user";
+import type { Crawl, JobType } from "@/types/crawler";
+import type { OrgData } from "@/utils/orgs";
+import { isAdmin, isCrawler } from "@/utils/orgs";
+import LiteElement, { html } from "@/utils/LiteElement";
+import { needLogin } from "@/utils/auth";
 import "./workflow-detail";
 import "./workflows-list";
 import "./workflows-new";
 import "./crawl-detail";
 import "./crawls-list";
 import "./collections-list";
-import "./collections-new";
-import "./collection-edit";
 import "./collection-detail";
 import "./browser-profiles-detail";
 import "./browser-profiles-list";
 import "./browser-profiles-new";
 import "./settings";
 import "./dashboard";
-import "./components/file-uploader";
-import "./components/new-browser-profile-dialog";
-import "./components/new-collection-dialog";
-import "./components/new-workflow-dialog";
 import type {
   Member,
   OrgInfoChangeEvent,
@@ -36,7 +30,11 @@ import type {
   OrgRemoveMemberEvent,
 } from "./settings";
 import type { Tab as CollectionTab } from "./collection-detail";
-import type { SelectJobTypeEvent } from "./components/new-workflow-dialog";
+import type { SelectJobTypeEvent } from "@/features/crawl-workflows/new-workflow-dialog";
+import type { QuotaUpdateDetail } from "@/controllers/api";
+import { type TemplateResult } from "lit";
+import { APIError } from "@/utils/api";
+import type { CollectionSavedEvent } from "@/features/collections/collection-metadata-dialog";
 
 const RESOURCE_NAMES = ["workflow", "collection", "browser-profile", "upload"];
 type ResourceName = (typeof RESOURCE_NAMES)[number];
@@ -62,14 +60,18 @@ type Params = {
   settingsTab?: "information" | "members";
   new?: ResourceName;
 };
+
 const defaultTab = "home";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-@needLogin
+/**
+ * @fires update-user-info
+ */
 @localized()
 @customElement("btrix-org")
+@needLogin
 export class Org extends LiteElement {
   @property({ type: Object })
   authState?: AuthState;
@@ -138,7 +140,32 @@ export class Org extends LiteElement {
     return false;
   }
 
-  async willUpdate(changedProperties: Map<string, any>) {
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener(
+      "btrix-execution-minutes-quota-update",
+      this.onExecutionMinutesQuotaUpdate
+    );
+    this.addEventListener(
+      "btrix-storage-quota-update",
+      this.onStorageQuotaUpdate
+    );
+    this.addEventListener("", () => {});
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener(
+      "btrix-execution-minutes-quota-update",
+      this.onExecutionMinutesQuotaUpdate
+    );
+    this.removeEventListener(
+      "btrix-storage-quota-update",
+      this.onStorageQuotaUpdate
+    );
+    super.disconnectedCallback();
+  }
+
+  async willUpdate(changedProperties: Map<string, unknown>) {
     if (
       (changedProperties.has("userInfo") && this.userInfo) ||
       (changedProperties.has("slug") && this.slug)
@@ -219,7 +246,7 @@ export class Org extends LiteElement {
       return "";
     }
 
-    let tabPanelContent = "" as any;
+    let tabPanelContent: TemplateResult<1> | string | undefined = "";
 
     switch (this.orgTab) {
       case "home":
@@ -255,7 +282,7 @@ export class Org extends LiteElement {
       ${this.renderOrgNavBar()}
       <main>
         <div
-          class="w-full max-w-screen-lg mx-auto px-3 box-border py-7"
+          class="w-full max-w-screen-desktop mx-auto px-3 box-border py-7"
           aria-labelledby="${this.orgTab}-tab"
         >
           ${tabPanelContent}
@@ -272,7 +299,7 @@ export class Org extends LiteElement {
           ? "bg-slate-100 border-b py-5"
           : ""}"
       >
-        <div class="w-full max-w-screen-lg mx-auto px-3 box-border">
+        <div class="w-full max-w-screen-desktop mx-auto px-3 box-border">
           <sl-alert
             variant="warning"
             closable
@@ -298,7 +325,7 @@ export class Org extends LiteElement {
           ? "bg-slate-100 border-b py-5"
           : ""}"
       >
-        <div class="w-full max-w-screen-lg mx-auto px-3 box-border">
+        <div class="w-full max-w-screen-desktop mx-auto px-3 box-border">
           <sl-alert
             variant="warning"
             closable
@@ -323,7 +350,7 @@ export class Org extends LiteElement {
 
   private renderOrgNavBar() {
     return html`
-      <div class="w-full max-w-screen-lg mx-auto px-3 box-border">
+      <div class="w-full max-w-screen-desktop mx-auto px-3 box-border">
         <nav class="-ml-3 flex items-end overflow-x-auto">
           ${this.renderNavTab({
             tabName: "home",
@@ -429,23 +456,31 @@ export class Org extends LiteElement {
           .authState=${this.authState}
           orgId=${this.orgId}
           ?open=${this.openDialogName === "browser-profile"}
+          @sl-hide=${() => (this.openDialogName = undefined)}
         >
         </btrix-new-browser-profile-dialog>
         <btrix-new-workflow-dialog
           orgId=${this.orgId}
           ?open=${this.openDialogName === "workflow"}
+          @sl-hide=${() => (this.openDialogName = undefined)}
           @select-job-type=${(e: SelectJobTypeEvent) => {
             this.openDialogName = undefined;
             this.navTo(`${this.orgBasePath}/workflows?new&jobType=${e.detail}`);
           }}
         >
         </btrix-new-workflow-dialog>
-        <btrix-new-collection-dialog
-          .authState=${this.authState}
+        <btrix-collection-metadata-dialog
           orgId=${this.orgId}
+          .authState=${this.authState}
           ?open=${this.openDialogName === "collection"}
+          @sl-hide=${() => (this.openDialogName = undefined)}
+          @btrix-collection-saved=${(e: CollectionSavedEvent) => {
+            this.navTo(
+              `${this.orgBasePath}/collections/view/${e.detail.id}/items`
+            );
+          }}
         >
-        </btrix-new-collection-dialog>
+        </btrix-collection-metadata-dialog>
       </div>
     `;
   }
@@ -473,7 +508,6 @@ export class Org extends LiteElement {
         workflowId=${this.params.workflowId || ""}
         itemType=${this.params.itemType || "crawl"}
         ?isCrawler=${this.isCrawler}
-        @storage-quota-update=${this.onStorageQuotaUpdate}
       ></btrix-crawl-detail>`;
     }
 
@@ -484,7 +518,6 @@ export class Org extends LiteElement {
       ?orgStorageQuotaReached=${this.orgStorageQuotaReached}
       ?isCrawler=${this.isCrawler}
       itemType=${ifDefined(this.params.itemType || undefined)}
-      @storage-quota-update=${this.onStorageQuotaUpdate}
       @select-new-dialog=${this.onSelectNewDialog}
     ></btrix-crawls-list>`;
   }
@@ -508,8 +541,6 @@ export class Org extends LiteElement {
           openDialogName=${this.viewStateData?.dialog}
           ?isEditing=${isEditing}
           ?isCrawler=${this.isCrawler}
-          @storage-quota-update=${this.onStorageQuotaUpdate}
-          @execution-minutes-quota-update=${this.onExecutionMinutesQuotaUpdate}
         ></btrix-workflow-detail>
       `;
     }
@@ -527,8 +558,6 @@ export class Org extends LiteElement {
         jobType=${ifDefined(this.params.jobType)}
         ?orgStorageQuotaReached=${this.orgStorageQuotaReached}
         ?orgExecutionMinutesQuotaReached=${this.orgExecutionMinutesQuotaReached}
-        @storage-quota-update=${this.onStorageQuotaUpdate}
-        @execution-minutes-quota-update=${this.onExecutionMinutesQuotaUpdate}
         @select-new-dialog=${this.onSelectNewDialog}
       ></btrix-workflows-new>`;
     }
@@ -540,8 +569,6 @@ export class Org extends LiteElement {
       ?orgExecutionMinutesQuotaReached=${this.orgExecutionMinutesQuotaReached}
       userId=${this.userInfo!.id}
       ?isCrawler=${this.isCrawler}
-      @storage-quota-update=${this.onStorageQuotaUpdate}
-      @execution-minutes-quota-update=${this.onExecutionMinutesQuotaUpdate}
       @select-new-dialog=${this.onSelectNewDialog}
     ></btrix-workflows-list>`;
   }
@@ -552,7 +579,6 @@ export class Org extends LiteElement {
         .authState=${this.authState!}
         .orgId=${this.orgId}
         profileId=${this.params.browserProfileId}
-        @storage-quota-update=${this.onStorageQuotaUpdate}
       ></btrix-browser-profiles-detail>`;
     }
 
@@ -561,32 +587,22 @@ export class Org extends LiteElement {
         .authState=${this.authState!}
         .orgId=${this.orgId}
         .browserId=${this.params.browserId}
-        @storage-quota-update=${this.onStorageQuotaUpdate}
       ></btrix-browser-profiles-new>`;
     }
 
     return html`<btrix-browser-profiles-list
       .authState=${this.authState!}
       .orgId=${this.orgId}
-      @storage-quota-update=${this.onStorageQuotaUpdate}
       @select-new-dialog=${this.onSelectNewDialog}
     ></btrix-browser-profiles-list>`;
   }
 
   private renderCollections() {
     if (this.params.collectionId) {
-      if (this.orgPath.includes(`/edit/${this.params.collectionId}`)) {
-        return html`<btrix-collection-edit
-          .authState=${this.authState!}
-          orgId=${this.orgId}
-          collectionId=${this.params.collectionId}
-          ?isCrawler=${this.isCrawler}
-        ></btrix-collection-edit>`;
-      }
-
       return html`<btrix-collection-detail
         .authState=${this.authState!}
         orgId=${this.orgId}
+        userId=${this.userInfo!.id}
         collectionId=${this.params.collectionId}
         collectionTab=${(this.params.collectionTab as CollectionTab) ||
         "replay"}
@@ -658,11 +674,12 @@ export class Org extends LiteElement {
       if (newSlug) {
         this.navTo(`/orgs/${newSlug}${this.orgPath}`);
       }
-    } catch (e: any) {
+    } catch (e) {
       this.notify({
-        message: e.isApiError
-          ? e.message
-          : msg("Sorry, couldn't update organization at this time."),
+        message:
+          e instanceof APIError && e.isApiError
+            ? e.message
+            : msg("Sorry, couldn't update organization at this time."),
         variant: "danger",
         icon: "exclamation-octagon",
       });
@@ -675,7 +692,7 @@ export class Org extends LiteElement {
     this.removeMember(e.detail.member);
   }
 
-  private async onStorageQuotaUpdate(e: CustomEvent) {
+  private async onStorageQuotaUpdate(e: CustomEvent<QuotaUpdateDetail>) {
     e.stopPropagation();
     const { reached } = e.detail;
     this.orgStorageQuotaReached = reached;
@@ -684,7 +701,9 @@ export class Org extends LiteElement {
     }
   }
 
-  private async onExecutionMinutesQuotaUpdate(e: CustomEvent) {
+  private async onExecutionMinutesQuotaUpdate(
+    e: CustomEvent<QuotaUpdateDetail>
+  ) {
     e.stopPropagation();
     const { reached } = e.detail;
     this.orgExecutionMinutesQuotaReached = reached;
@@ -713,17 +732,18 @@ export class Org extends LiteElement {
         icon: "check2-circle",
       });
       this.org = await this.getOrg(this.orgId);
-    } catch (e: any) {
+    } catch (e) {
       console.debug(e);
 
       this.notify({
-        message: e.isApiError
-          ? e.message
-          : msg(
-              str`Sorry, couldn't update role for ${
-                user.name || user.email
-              } at this time.`
-            ),
+        message:
+          e instanceof APIError && e.isApiError
+            ? e.message
+            : msg(
+                str`Sorry, couldn't update role for ${
+                  user.name || user.email
+                } at this time.`
+              ),
         variant: "danger",
         icon: "exclamation-octagon",
       });
@@ -767,17 +787,18 @@ export class Org extends LiteElement {
       } else {
         this.org = await this.getOrg(this.orgId);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.debug(e);
 
       this.notify({
-        message: e.isApiError
-          ? e.message
-          : msg(
-              str`Sorry, couldn't remove ${
-                member.name || member.email
-              } at this time.`
-            ),
+        message:
+          e instanceof APIError && e.isApiError
+            ? e.message
+            : msg(
+                str`Sorry, couldn't remove ${
+                  member.name || member.email
+                } at this time.`
+              ),
         variant: "danger",
         icon: "exclamation-octagon",
       });

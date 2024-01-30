@@ -1,12 +1,13 @@
+// cSpell:words xstate
 import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized } from "@lit/localize";
 import { createMachine, interpret, assign } from "@xstate/fsm";
 
-import type { ViewState } from "../utils/APIRouter";
-import LiteElement, { html } from "../utils/LiteElement";
-import type { LoggedInEventDetail } from "../utils/AuthService";
-import AuthService from "../utils/AuthService";
-import { ROUTES } from "../routes";
+import type { ViewState } from "@/utils/APIRouter";
+import LiteElement, { html } from "@/utils/LiteElement";
+import type { LoggedInEventDetail } from "@/utils/AuthService";
+import AuthService from "@/utils/AuthService";
+import { ROUTES } from "@/routes";
 
 type FormContext = {
   successMessage?: string;
@@ -360,11 +361,14 @@ export class LogInPage extends LiteElement {
     try {
       const data = await AuthService.login({ email: username, password });
 
-      (data as LoggedInEventDetail).redirectUrl = this.redirectUrl;
+      this.dispatchEvent(
+        AuthService.createLoggedInEvent({
+          ...data,
+          redirectUrl: this.redirectUrl,
+        })
+      );
 
-      this.dispatchEvent(AuthService.createLoggedInEvent(data));
-
-      // no state update here, since "logged-in" event
+      // no state update here, since "btrix-logged-in" event
       // will result in a route change
     } catch (e: any) {
       if (e.isApiError) {
