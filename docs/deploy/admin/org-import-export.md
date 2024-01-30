@@ -20,10 +20,9 @@ aws s3 cp s3://current-bucket/<org-id> /path/to/local/directory/<org-id> --recur
 It is important to retain the directory structure to re-import an organization's files into another Browsertrix Cloud cluster later, as some assets such as browser profiles and uploads  have "subdirectory" prefixes.
 
 !!! note
-
     Browsertrix Cloud uses S3-compatible object storage to manage files. In object storage systems, all files are stored flat in the underlying system but presented in logical "directories" based on file prefixes for user convenience.
 
-    When we speak of a "directory" in an S3 bucket in this guide, we are referring to a consistent file prefix, in this case an organization's ID.
+    In this guide, the "directory" in an S3 bucket refers to a consistent file prefix, in this case an organization's ID.
 
     When files are exported from an S3 bucket to a local filesystem such as a laptop or desktop computer, these logical "directories" will turn into folders in the local filesystem.
 
@@ -71,7 +70,7 @@ The storage name referenced in the organization and files to be imported must ma
 
 If the storage name and configuration details are identical in the original and new clusters, no additional steps need to be taken.
 
-If the primary storage for the new cluster uses a different name than the original cluster, update the storage references during import by passing the `storageName` query parameter to the import API endpont, e.g.:
+If the primary storage for the new cluster uses a different name than the original cluster, update the storage references during import by passing the `storageName` query parameter to the import API endpoint, e.g.:
 
 ```sh
 curl -X POST -H "Content-type: application/json" -H "Authorization: Bearer <jwt token>" --data-binary "@org-export.json" https://browsertrix.cloud/api/orgs/import?storageName=newname
@@ -88,4 +87,3 @@ curl -X POST -H "Content-type: application/json" -H "Authorization: Bearer <jwt 
 ```
 
 If the JSON export is from an earlier database version than the cluster the org is being imported into, re-run migrations from the version in the JSON export after importing the org. To do this, re-install the application with helm, setting `rerun_from_migration` in the helm chart to the database version specified in the JSON export.
-
