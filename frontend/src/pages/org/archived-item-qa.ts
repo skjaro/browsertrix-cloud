@@ -118,23 +118,36 @@ export class ArchivedItemQA extends TailwindElement {
           <h1>${msg("Review")} &mdash; ${itemName}</h1>
         </header>
         <section class="main outline">
-          <nav>
-            <btrix-navigation-button
-              id="screenshot-tab"
-              href=${`${crawlBaseUrl}/review/screenshots`}
-              .active=${this.tab === "screenshots"}
-              size="small"
-              @click=${this.navigate.link}
-              >${msg("Screenshots")}</btrix-navigation-button
-            >
-            <btrix-navigation-button
-              id="replay-tab"
-              href=${`${crawlBaseUrl}/review/replay`}
-              .active=${this.tab === "replay"}
-              size="small"
-              @click=${this.navigate.link}
-              >${msg("Replay")}</btrix-navigation-button
-            >
+          <nav class="flex items-center justify-between p-2">
+            <div class="flex gap-4">
+              <btrix-navigation-button
+                id="screenshot-tab"
+                href=${`${crawlBaseUrl}/review/screenshots`}
+                ?active=${this.tab === "screenshots"}
+                @click=${this.navigate.link}
+              >
+                ${msg("Screenshots")}
+              </btrix-navigation-button>
+              <btrix-navigation-button
+                id="replay-tab"
+                href=${`${crawlBaseUrl}/review/replay`}
+                ?active=${this.tab === "replay"}
+                @click=${this.navigate.link}
+              >
+                ${msg("Replay")}
+              </btrix-navigation-button>
+            </div>
+            <div class="flex gap-4">
+              <sl-button size="small">
+                <sl-icon slot="prefix" name="arrow-left"></sl-icon>
+                ${msg("Previous Page")}
+              </sl-button>
+              <btrix-qa-rating></btrix-qa-rating>
+              <sl-button variant="primary" size="small">
+                <sl-icon slot="suffix" name="arrow-right"></sl-icon>
+                ${msg("Next Page")}
+              </sl-button>
+            </div>
           </nav>
           <div role="region" aria-labelledby="${this.tab}-tab">
             ${choose(
