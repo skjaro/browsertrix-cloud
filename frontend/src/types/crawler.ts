@@ -181,3 +181,9 @@ export type CrawlerChannel = {
 };
 
 export type ArchivedItem = Crawl | Upload;
+
+export type PageComment = {
+  date: string;
+  user: string;
+  body: string;
+};
