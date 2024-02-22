@@ -576,7 +576,7 @@ class CrawlOps(BaseCrawlOps):
 
         return crawls_data
 
-    async def add_new_qa_crawl(self, qa_crawl_id, crawl_id, user):
+    async def add_new_qa_crawl(self, qa_crawl_id, crawl_id, user, crawler_image):
         """Add QA crawl subdoc to crawl document"""
         qa_crawl = QACrawl(
             id=qa_crawl_id,
@@ -593,7 +593,7 @@ class CrawlOps(BaseCrawlOps):
         # pylint: disable=broad-exception-caught
         except Exception as exc:
             print(
-                f"Error adding QA Crawl {qa_crawl_id} to crawl doc {crawl_id}",
+                f"Error adding QA Crawl {qa_crawl_id} to crawl doc {crawl_id}: {exc}",
                 flush=True,
             )
 
@@ -642,7 +642,7 @@ class CrawlOps(BaseCrawlOps):
                 status_code=500, detail=f"Error starting QA crawl: {exc}"
             )
 
-    async def stop_crawl_qa_job(self, qa_crawl_id: str, org: Organization):
+    async def stop_crawl_qa_job(self, qa_crawl_id: str):
         """Stop crawl QA job"""
         return await self.crawl_manager.shutdown_crawl(qa_crawl_id)
 
@@ -843,7 +843,7 @@ def init_crawls_api(app, user_dep, *args):
 
     @app.post("/orgs/{oid}/crawls/{crawl_id}/qa/stop", tags=["crawls", "qa"])
     async def stop_crawl_qa_job(crawl_id, org: Organization = Depends(org_crawl_dep)):
-        return await ops.stop_crawl_qa_job(crawl_id, org)
+        return await ops.stop_crawl_qa_job(crawl_id)
 
     @app.get(
         "/orgs/all/crawls/{crawl_id}",
