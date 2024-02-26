@@ -1,7 +1,12 @@
-import { html, css, nothing, type PropertyValues } from "lit";
+import {
+  html,
+  css,
+  nothing,
+  type PropertyValues,
+  type TemplateResult,
+} from "lit";
 import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized } from "@lit/localize";
-import { choose } from "lit/directives/choose.js";
 
 import { TailwindElement } from "@/classes/TailwindElement";
 import { type AuthState } from "@/utils/AuthService";
@@ -12,7 +17,8 @@ import { NotifyController } from "@/controllers/notify";
 import { renderName } from "@/utils/crawler";
 import { type ArchivedItem } from "@/types/crawler";
 
-export type QATab = "screenshots" | "replay";
+const TABS = ["screenshots", "replay"] as const;
+export type QATab = (typeof TABS)[number];
 
 @localized()
 @customElement("btrix-archived-item-qa")
@@ -137,14 +143,7 @@ export class ArchivedItemQA extends TailwindElement {
             >
           </nav>
           <div role="region" aria-labelledby="${this.tab}-tab">
-            ${choose(
-              this.tab,
-              [
-                ["screenshots", this.renderScreenshots],
-                ["replay", this.renderReplay],
-              ],
-              () => html`<btrix-not-found></btrix-not-found>`,
-            )}
+            ${this.renderSections()}
           </div>
         </section>
         <h2 class="pageListHeader outline">
@@ -155,13 +154,42 @@ export class ArchivedItemQA extends TailwindElement {
     `;
   }
 
+  private renderSections() {
+    const tabSection: Record<
+      QATab,
+      { label: string; render: () => TemplateResult<1> | undefined }
+    > = {
+      screenshots: {
+        label: msg("Screenshots"),
+        render: this.renderScreenshots,
+      },
+      replay: {
+        label: msg("Replay"),
+        render: this.renderReplay,
+      },
+    };
+    return html`
+      ${TABS.map((tab) => {
+        const section = tabSection[tab];
+        const isActive = tab === this.tab;
+        return html`
+          <section
+            class="${isActive ? "" : "invisible absolute -top-full -left-full"}"
+            aria-hidden=${!isActive}
+          >
+            ${section.render()}
+          </section>
+        `;
+      })}
+    `;
+  }
+
   private readonly renderScreenshots = () => {
     return html`[screenshots]`;
   };
 
   private readonly renderReplay = () => {
     if (!this.itemId) return;
-
     const replaySource = `/api/orgs/${this.orgId}/crawls/${this.itemId}/replay.json`;
     const headers = this.authState?.headers;
     const config = JSON.stringify({ headers });
