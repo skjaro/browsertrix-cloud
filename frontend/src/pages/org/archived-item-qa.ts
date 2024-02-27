@@ -87,6 +87,9 @@ export class ArchivedItemQA extends TailwindElement {
   @state()
   private item?: ArchivedItem;
 
+  @state()
+  private replayReady = false;
+
   private readonly api = new APIController(this);
   private readonly navigate = new NavigateController(this);
   private readonly notify = new NotifyController(this);
@@ -124,11 +127,11 @@ export class ArchivedItemQA extends TailwindElement {
           <h1>${msg("Review")} &mdash; ${itemName}</h1>
         </header>
         <section class="main outline">
-          <nav>
+          <nav aria-label=${msg("QA page")}>
             <btrix-navigation-button
               id="screenshot-tab"
               href=${`${crawlBaseUrl}/review/screenshots`}
-              .active=${this.tab === "screenshots"}
+              ?active=${this.tab === "screenshots"}
               size="small"
               @click=${this.navigate.link}
               >${msg("Screenshots")}</btrix-navigation-button
@@ -142,9 +145,7 @@ export class ArchivedItemQA extends TailwindElement {
               >${msg("Replay")}</btrix-navigation-button
             >
           </nav>
-          <div role="region" aria-labelledby="${this.tab}-tab">
-            ${this.renderSections()}
-          </div>
+          ${this.renderToolbar()} ${this.renderSections()}
         </section>
         <h2 class="pageListHeader outline">
           ${msg("Pages List")} <sl-button>${msg("Finish Review")}</sl-button>
@@ -154,17 +155,34 @@ export class ArchivedItemQA extends TailwindElement {
     `;
   }
 
+  private renderToolbar() {
+    return html`
+      <div
+        class="my-2 flex h-12 items-center rounded-md border bg-neutral-50 text-base"
+      >
+        <div class="mx-1">
+          <sl-icon-button name="intersect"></sl-icon-button>
+          <sl-icon-button name="layout-split"></sl-icon-button>
+          <sl-icon-button name="vr"></sl-icon-button>
+        </div>
+        <div
+          class="mx-1.5 flex-1 rounded border bg-neutral-0 p-2 text-sm leading-none"
+        >
+          https://example.com
+        </div>
+      </div>
+    `;
+  }
+
   private renderSections() {
     const tabSection: Record<
       QATab,
-      { label: string; render: () => TemplateResult<1> | undefined }
+      { render: () => TemplateResult<1> | undefined }
     > = {
       screenshots: {
-        label: msg("Screenshots"),
         render: this.renderScreenshots,
       },
       replay: {
-        label: msg("Replay"),
         render: this.renderReplay,
       },
     };
@@ -175,6 +193,7 @@ export class ArchivedItemQA extends TailwindElement {
         return html`
           <section
             class="${isActive ? "" : "invisible absolute -top-full -left-full"}"
+            aria-labelledby="${this.tab}-tab"
             aria-hidden=${!isActive}
           >
             ${section.render()}
@@ -185,16 +204,55 @@ export class ArchivedItemQA extends TailwindElement {
   }
 
   private readonly renderScreenshots = () => {
-    return html`[screenshots]`;
+    if (!this.itemId) return;
+
+    const url = `/replay/w/manual-20240226234726-051ed881-37e/:fbc91e679056dc8da1528376ddbc7e5c931ca9b03a0d0f65430c5ee2a76c94c2/20240226234908mp_/urn:view:${window.encodeURI("http://example.com/")}`;
+
+    return html` <div class="flex gap-3">
+      <div class="flex-1">
+        <h3>${msg("Crawl Screenshot")}</h3>
+      </div>
+      <div class="flex-1">
+        <h3>${msg("Replay Screenshot")}</h3>
+        <div class="bold text-xl">img:</div>
+        <img class="outline" src="${url}?img" loading="lazy" />
+        <div class="bold text-xl">object:</div>
+        <object class="outline" type="image/png" data="${url}"></object>
+        <div class="bold text-xl">iframe:</div>
+        <iframe
+          src="${url}"
+          class="aspect-video w-full overflow-hidden bg-yellow-300 outline"
+          @load=${(e: Event) => {
+            const iframe = e.currentTarget as HTMLIFrameElement;
+
+            const { height, width } = iframe.getBoundingClientRect();
+            const img = iframe.contentDocument?.body.querySelector("img");
+            if (img) {
+              img.style.height = `${height}px`;
+              img.style.width = `${width}px`;
+            }
+            console.log(height, width);
+            // const { scrollHeight, scrollWidth } =
+            //   iframe.contentDocument?.body || {};
+            // if (scrollHeight) {
+            //   iframe.style.height = `${scrollHeight}px`;
+            // }
+            // if (scrollWidth) {
+            //   iframe.style.width = `${scrollWidth}px`;
+            // }
+          }}
+        ></iframe>
+      </div>
+    </div>`;
   };
 
-  private readonly renderReplay = () => {
+  private readonly renderReplay = (crawlId?: string) => {
     if (!this.itemId) return;
-    const replaySource = `/api/orgs/${this.orgId}/crawls/${this.itemId}/replay.json`;
+    const replaySource = `/api/orgs/${this.orgId}/crawls/${crawlId || this.itemId}/replay.json`;
     const headers = this.authState?.headers;
     const config = JSON.stringify({ headers });
 
-    return html`<div id="replay-crawl" class="aspect-4/3 overflow-hidden">
+    return html`<div class="aspect-4/3 overflow-hidden">
       <replay-web-page
         source="${replaySource}"
         coll="${this.itemId}"
