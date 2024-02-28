@@ -687,7 +687,7 @@ class StorageOps:
                     )
                 )
 
-        return chain.from_iterable(*page_generators)
+        return chain.from_iterable(page_generators)
 
     def _sync_dl(
         self, all_files: List[CrawlFileOut], client: S3Client, bucket: str, key: str
