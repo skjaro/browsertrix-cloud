@@ -52,7 +52,11 @@ class PageOps:
             crawl = await self.crawl_ops.get_crawl(crawl_id, None)
             org = await self.org_ops.get_org_by_id(crawl.oid)
             wacz_files = await self.crawl_ops.get_wacz_files(crawl_id, org)
+            print(f"WACZ files for crawl {crawl_id}", flush=True)
+            print("Starting stream of pages from WACZ", flush=True)
             stream = await self.storage_ops.sync_stream_pages_from_wacz(org, wacz_files)
+            print(f"Stream type: {type(stream)}", flush=True)
+            print(f"Stream: {stream}", flush=True)
             for page_dict in stream:
                 if not page_dict.get("url"):
                     continue
@@ -87,11 +91,15 @@ class PageOps:
                     else datetime.now()
                 ),
             )
+            print(
+                f"About to add page {page_id} from crawl {crawl_id} to db", flush=True
+            )
             await self.pages.insert_one(
                 page.to_dict(
                     exclude_unset=True, exclude_none=True, exclude_defaults=True
                 )
             )
+            print(f"Added page {page_id} from crawl {crawl_id} to db", flush=True)
         except pymongo.errors.DuplicateKeyError:
             return
         # pylint: disable=broad-except
