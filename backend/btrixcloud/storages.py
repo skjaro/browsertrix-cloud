@@ -665,7 +665,9 @@ class StorageOps:
                 client, bucket, wacz_key, pagefile_zipinfo, cd_start
             )
             for line in line_iter:
+                print("line len: ", len(line), flush=True)
                 yield _parse_json(line.decode("utf-8", errors="ignore"))
+                print("parsed", flush=True)
 
         page_generators: List[Iterator[Dict[Any, Any]]] = []
 
