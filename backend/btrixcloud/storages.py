@@ -14,12 +14,12 @@ from typing import (
 )
 from urllib.parse import urlsplit
 from contextlib import asynccontextmanager
+from itertools import chain
 
 import asyncio
 import heapq
 import zlib
 import json
-import itertools
 import os
 
 from datetime import datetime
@@ -636,7 +636,7 @@ class StorageOps:
                         )
                     )
 
-            log_generators.append(itertools.chain(*wacz_log_streams))
+            log_generators.append(chain(*wacz_log_streams))
 
         heap_iter = heapq.merge(*log_generators, key=lambda entry: entry["timestamp"])
 
@@ -687,7 +687,7 @@ class StorageOps:
                     )
                 )
 
-        return itertools.chain(*page_generators)
+        return chain.from_iterable(*page_generators)
 
     def _sync_dl(
         self, all_files: List[CrawlFileOut], client: S3Client, bucket: str, key: str
