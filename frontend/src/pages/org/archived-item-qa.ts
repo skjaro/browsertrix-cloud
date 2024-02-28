@@ -10,7 +10,8 @@ import { NavigateController } from "@/controllers/navigate";
 import { APIController } from "@/controllers/api";
 import { NotifyController } from "@/controllers/notify";
 import { renderName } from "@/utils/crawler";
-import { type ArchivedItem } from "@/types/crawler";
+import type { ArchivedItem, ArchivedItemPage } from "@/types/crawler";
+import { type APIPaginatedList } from "@/types/api";
 
 export type QATab = "screenshots" | "replay";
 
@@ -72,6 +73,9 @@ export class ArchivedItemQA extends TailwindElement {
   @property({ type: String })
   itemId?: string;
 
+  @property({ type: String })
+  itemPageId?: string;
+
   @property({ type: Boolean })
   isCrawler = false;
 
@@ -81,6 +85,9 @@ export class ArchivedItemQA extends TailwindElement {
   @state()
   private item?: ArchivedItem;
 
+  @state()
+  private pages?: APIPaginatedList<ArchivedItemPage>;
+
   private readonly api = new APIController(this);
   private readonly navigate = new NavigateController(this);
   private readonly notify = new NotifyController(this);
@@ -89,11 +96,27 @@ export class ArchivedItemQA extends TailwindElement {
     changedProperties: PropertyValues<this> | Map<PropertyKey, unknown>,
   ): void {
     if (changedProperties.has("itemId") && this.itemId) {
-      void this.fetchArchivedItem();
+      void this.initItem();
+    }
+  }
+
+  private async initItem() {
+    void this.fetchCrawl();
+    await this.fetchPages();
+
+    const firstPage = this.pages?.items[0];
+    if (!this.itemPageId && firstPage) {
+      this.navigate.to(
+        `${window.location.pathname}?itemPageId=${firstPage.id}`,
+      );
     }
   }
 
   render() {
+    if (!this.pages) {
+      return html`loading pages...`;
+    }
+
     const crawlBaseUrl = `${this.navigate.orgBasePath}/items/crawl/${this.itemId}`;
     const itemName = this.item ? renderName(this.item) : nothing;
     return html`
@@ -146,6 +169,7 @@ export class ArchivedItemQA extends TailwindElement {
                 .authState=${this.authState}
                 .orgId=${this.orgId}
                 .itemId=${this.itemId}
+                .pageId=${this.itemPageId}
               ></btrix-page-qa-toolbar>
               <sl-button variant="primary" size="small">
                 <sl-icon slot="suffix" name="arrow-right"></sl-icon>
@@ -167,7 +191,23 @@ export class ArchivedItemQA extends TailwindElement {
         <h2 class="pageListHeader outline">
           ${msg("Pages List")} <sl-button>${msg("Finish Review")}</sl-button>
         </h2>
-        <section class="pageList outline">[page list]</section>
+        <section class="pageList outline">
+          <ul>
+            ${this.pages?.items.map(
+              (page) => html`
+                <li>
+                  <a
+                    href="${window.location.pathname}?itemPageId=${page.id}"
+                    @click=${this.navigate.link}
+                  >
+                    ${page.id}</a
+                  >
+                </li>
+              `,
+            )}
+          </ul>
+          page: ${this.pages?.page}
+        </section>
       </article>
     `;
   }
@@ -180,9 +220,9 @@ export class ArchivedItemQA extends TailwindElement {
     return html`[replay]`;
   };
 
-  private async fetchArchivedItem(): Promise<void> {
+  private async fetchCrawl(): Promise<void> {
     try {
-      this.item = await this.getArchivedItem();
+      this.item = await this.getCrawl();
     } catch {
       this.notify.toast({
         message: msg("Sorry, couldn't retrieve archived item at this time."),
@@ -192,8 +232,29 @@ export class ArchivedItemQA extends TailwindElement {
     }
   }
 
-  private async getArchivedItem(): Promise<ArchivedItem> {
-    const apiPath = `/orgs/${this.orgId}/all-crawls/${this.itemId}`;
-    return this.api.fetch<ArchivedItem>(apiPath, this.authState!);
+  private async fetchPages(): Promise<void> {
+    try {
+      this.pages = await this.getPages();
+    } catch {
+      this.notify.toast({
+        message: msg("Sorry, couldn't retrieve archived item at this time."),
+        variant: "danger",
+        icon: "exclamation-octagon",
+      });
+    }
+  }
+
+  private async getCrawl(): Promise<ArchivedItem> {
+    return this.api.fetch<ArchivedItem>(
+      `/orgs/${this.orgId}/crawls/${this.itemId}`,
+      this.authState!,
+    );
+  }
+
+  private async getPages(): Promise<APIPaginatedList<ArchivedItemPage>> {
+    return this.api.fetch<APIPaginatedList<ArchivedItemPage>>(
+      `/orgs/${this.orgId}/crawls/${this.itemId}/pages`,
+      this.authState!,
+    );
   }
 }
