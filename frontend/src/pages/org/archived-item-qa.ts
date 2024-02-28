@@ -7,7 +7,7 @@ import {
 } from "lit";
 import { state, property, customElement } from "lit/decorators.js";
 import { msg, localized } from "@lit/localize";
-import { when } from "lit/directives/when.js";
+import { choose } from "lit/directives/choose.js";
 
 import { TailwindElement } from "@/classes/TailwindElement";
 import { type AuthState } from "@/utils/AuthService";
@@ -89,16 +89,11 @@ export class ArchivedItemQA extends TailwindElement {
   private item?: ArchivedItem;
 
   @state()
-  private replaySWReady = false;
+  private screenshotIframesReady: 0 | 1 | 2 = 0;
 
   private readonly api = new APIController(this);
   private readonly navigate = new NavigateController(this);
   private readonly notify = new NotifyController(this);
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    this.registerSw();
-  }
 
   protected willUpdate(
     changedProperties: PropertyValues<this> | Map<PropertyKey, unknown>,
@@ -167,12 +162,25 @@ export class ArchivedItemQA extends TailwindElement {
         class="my-2 flex h-12 items-center rounded-md border bg-neutral-50 text-base"
       >
         <div class="mx-1">
-          <sl-icon-button name="intersect"></sl-icon-button>
-          <sl-icon-button name="layout-split"></sl-icon-button>
-          <sl-icon-button name="vr"></sl-icon-button>
+          ${choose(this.tab, [
+            [
+              "replay",
+              () => html`
+                <!-- <sl-icon-button name="arrow-clockwise"></sl-icon-button> -->
+              `,
+            ],
+            [
+              "screenshots",
+              () => html`
+                <!-- <sl-icon-button name="intersect"></sl-icon-button> -->
+                <!-- <sl-icon-button name="layout-split"></sl-icon-button> -->
+                <!-- <sl-icon-button name="vr"></sl-icon-button> -->
+              `,
+            ],
+          ])}
         </div>
         <div
-          class="mx-1.5 flex-1 rounded border bg-neutral-0 p-2 text-sm leading-none"
+          class=" mx-1.5 flex-1 rounded border bg-neutral-0 p-2 text-sm leading-none"
         >
           https://example.com
         </div>
@@ -212,20 +220,38 @@ export class ArchivedItemQA extends TailwindElement {
   private readonly renderScreenshots = () => {
     if (!this.itemId) return;
 
-    const url = `/w/manual-20240226234726-051ed881-37e/:fbc91e679056dc8da1528376ddbc7e5c931ca9b03a0d0f65430c5ee2a76c94c2/20240226234908mp_/urn:view:http://example.com/`;
+    const url = `/replay/w/manual-20240226234726-051ed881-37e/:fbc91e679056dc8da1528376ddbc7e5c931ca9b03a0d0f65430c5ee2a76c94c2/20240226234908mp_/urn:view:http://example.com/`;
 
-    return html` <div class="flex gap-3">
-      <div class="flex-1">
-        <h3>${msg("Crawl Screenshot")}</h3>
+    return html`
+      <div class="mb-2 flex justify-between text-base font-medium">
+        <h3 id="crawlScreenshotHeading">${msg("Crawl Screenshot")}</h3>
+        <h3 id="replayScreenshotHeading">${msg("Replay Screenshot")}</h3>
       </div>
-      <div class="flex-1">
-        <h3>${msg("Replay Screenshot")}</h3>
-        ${when(
-          this.replaySWReady,
-          () => html` <img class="outline" src="${url}" /> `,
-        )}
+      <div class="overflow-hidden rounded border bg-slate-50">
+        <sl-image-comparer
+          class="${this.screenshotIframesReady === 2
+            ? "visible"
+            : "invisible"} w-full"
+        >
+          <iframe
+            slot="before"
+            name="crawlScreenshot"
+            src="${url}"
+            class="aspect-video w-full"
+            aria-labelledby="crawlScreenshotHeading"
+            @load=${this.onScreenshotLoad}
+          ></iframe>
+          <iframe
+            slot="after"
+            name="replayScreenshot"
+            src="${url}"
+            class="aspect-video w-full"
+            aria-labelledby="replayScreenshotHeading"
+            @load=${this.onScreenshotLoad}
+          ></iframe>
+        </sl-image-comparer>
       </div>
-    </div>`;
+    `;
   };
 
   private readonly renderReplay = (crawlId?: string) => {
@@ -246,6 +272,17 @@ export class ArchivedItemQA extends TailwindElement {
     </div>`;
   };
 
+  private readonly onScreenshotLoad = (e: Event) => {
+    const iframe = e.currentTarget as HTMLIFrameElement;
+    const img = iframe.contentDocument?.body.querySelector("img");
+    // Make image fill iframe container
+    if (img) {
+      img.style.height = "auto";
+      img.style.width = "100%";
+    }
+    this.screenshotIframesReady += 1;
+  };
+
   private async fetchArchivedItem(): Promise<void> {
     try {
       this.item = await this.getArchivedItem();
@@ -259,37 +296,7 @@ export class ArchivedItemQA extends TailwindElement {
   }
 
   private async getArchivedItem(): Promise<ArchivedItem> {
-    const apiPath = `/orgs/${this.orgId}/all-crawls/${this.itemId}`;
+    const apiPath = `/orgs/${this.orgId}/crawls/${this.itemId}`;
     return this.api.fetch<ArchivedItem>(apiPath, this.authState!);
-  }
-
-  /**
-   * Register ReplayWeb.Page service worker to enable routing to screenshot image
-   */
-  private async registerSw() {
-    try {
-      const reg = await navigator.serviceWorker.register("/replay/sw.js", {
-        scope: "/",
-      });
-      const sw = reg.installing || reg.waiting || reg.active;
-      console.log("archived-item-qa sw state:", sw?.state);
-      if (sw) {
-        if (sw.state !== "activated") {
-          await new Promise((resolve) => {
-            sw.addEventListener("statechange", () => {
-              if (sw.state === "activated") {
-                resolve(null);
-              }
-            });
-          });
-        }
-        this.replaySWReady = true;
-      } else {
-        this.replaySWReady = false;
-        console.debug("no sw");
-      }
-    } catch (error) {
-      console.error(`Registration failed with ${error}`);
-    }
   }
 }
