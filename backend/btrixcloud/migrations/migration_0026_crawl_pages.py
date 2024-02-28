@@ -34,14 +34,11 @@ class Migration(BaseMigration):
         if not crawl_ids_no_pages:
             return
 
-        all_coroutines = []
-
         for crawl_id in crawl_ids_no_pages:
-            current_coroutine = self.page_ops.add_crawl_pages_to_db_from_wacz(crawl_id)
-            all_coroutines.append(current_coroutine)
-
-        try:
-            await gather_tasks_with_concurrency(*all_coroutines)
-        # pylint: disable=broad-exception-caught, raise-missing-from
-        except Exception as err:
-            print(f"Error adding pages to db: {err}", flush=True)
+            try:
+                await self.page_ops.add_crawl_pages_to_db_from_wacz(crawl_id)
+            # pylint: disable=broad-exception-caught, raise-missing-from
+            except Exception as err:
+                print(
+                    f"Error adding pages to db for crawl {crawl_id}: {err}", flush=True
+                )
