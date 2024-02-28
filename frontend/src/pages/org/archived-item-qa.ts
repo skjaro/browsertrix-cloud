@@ -89,7 +89,7 @@ export class ArchivedItemQA extends TailwindElement {
   private item?: ArchivedItem;
 
   @state()
-  private replayReady = false;
+  private replaySWReady = false;
 
   private readonly api = new APIController(this);
   private readonly navigate = new NavigateController(this);
@@ -221,7 +221,7 @@ export class ArchivedItemQA extends TailwindElement {
       <div class="flex-1">
         <h3>${msg("Replay Screenshot")}</h3>
         ${when(
-          this.replayReady,
+          this.replaySWReady,
           () => html` <img class="outline" src="${url}" /> `,
         )}
       </div>
@@ -283,9 +283,9 @@ export class ArchivedItemQA extends TailwindElement {
             });
           });
         }
-        this.replayReady = true;
+        this.replaySWReady = true;
       } else {
-        this.replayReady = false;
+        this.replaySWReady = false;
         console.debug("no sw");
       }
     } catch (error) {
