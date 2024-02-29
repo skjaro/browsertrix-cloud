@@ -210,14 +210,16 @@ def sync_get_zip_file(client, bucket, key):
 
 async def get_file_size_presigned_url(url: str):
     """Get file size from presigned url"""
-    headers = {"Range": f"bytes=0-1"}
+    headers = {"Range": "bytes=0-1"}
     if "host.docker.internal" in url:
         headers["Host"] = "localhost:30870"
 
     length = 0
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
-            length = int(resp.headers.get("Content-Length", 0))
+            cr = resp.headers.get("Content-Range")
+            if cr:
+                length = int(cr.split("/")[1])
 
     print("WACZ length", length, flush=True)
     return length
