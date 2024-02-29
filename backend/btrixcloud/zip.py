@@ -210,7 +210,7 @@ def sync_get_zip_file(client, bucket, key):
 
 async def get_file_size_presigned_url(url: str):
     """Get file size from presigned url"""
-    headers = {}
+    headers = {"Range": f"bytes=0-1"}
     if "host.docker.internal" in url:
         headers["Host"] = "localhost:30870"
 
