@@ -183,6 +183,7 @@ export type CrawlerChannel = {
 export type ArchivedItem = Crawl | Upload;
 
 export type ArchivedItemPageComment = {
+  id: string;
   created: string;
   modified: string;
   userName: string;
