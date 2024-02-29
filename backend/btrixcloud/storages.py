@@ -559,8 +559,9 @@ class StorageOps:
             print(
                 f"Getting page stream for file {pagefile_zipinfo.filename}", flush=True
             )
-            page_stream = stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
-            page_generators.append(page_stream)
+            page_generators.append(
+                stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
+            )
 
         return stream.merge(*page_generators)
 
