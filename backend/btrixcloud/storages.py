@@ -523,13 +523,10 @@ class StorageOps:
         wacz_url = wacz_file.path
         if wacz_url.startswith("/data"):
             wacz_url = f"http://host.docker.internal:30870{wacz_url}"
-        print(f"WACZ url: {wacz_url}", flush=True)
         cd_start, zip_file = await get_zip_file_from_presigned_url(wacz_url)
 
         # pylint: disable=too-many-function-args
-        async def stream_page_lines(
-            wacz_url, cd_start, pagefile_zipinfo
-        ) -> Stream[Never]:
+        async def stream_page_lines(wacz_url, cd_start, pagefile_zipinfo):
             """Pass lines as json objects"""
             print(
                 f"Fetching JSON lines from {pagefile_zipinfo.filename} in {wacz_url}",
@@ -539,11 +536,7 @@ class StorageOps:
             async for line in get_filestream_aiohttp(
                 wacz_url, pagefile_zipinfo, cd_start
             ):
-                print("line len: ", len(line), flush=True)
-                parsed = _parse_json(line.decode("utf-8", errors="ignore"))
-                print(parsed, flush=True)
-                yield parsed
-                print("parsed", flush=True)
+                yield _parse_json(line.decode("utf-8", errors="ignore"))
 
         page_generators: List[Iterator[Dict[Any, Any]]] = []
 
