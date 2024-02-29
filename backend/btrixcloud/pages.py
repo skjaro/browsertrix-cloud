@@ -51,17 +51,13 @@ class PageOps:
         try:
             crawl = await self.crawl_ops.get_crawl(crawl_id, None)
             org = await self.org_ops.get_org_by_id(crawl.oid)
-            wacz_files = await self.crawl_ops.get_wacz_files(crawl_id, org)
-            print(f"WACZ files for crawl {crawl_id}", flush=True)
-            print("Starting stream of pages from WACZ", flush=True)
-            stream = await self.storage_ops.sync_stream_pages_from_wacz(org, wacz_files)
-            print(f"Stream type: {type(stream)}", flush=True)
-            print(f"Stream: {stream}", flush=True)
-            for page_dict in stream:
-                if not page_dict.get("url"):
-                    continue
+            for wacz_file in crawl.resources:
+                stream = await self.storage_ops.stream_pages_from_wacz(org, wacz_file)
+                async for page_dict in stream:
+                    if not page_dict.get("url"):
+                        continue
 
-                await self.add_page_to_db(page_dict, crawl_id, crawl.oid)
+                    await self.add_page_to_db(page_dict, crawl_id, crawl.oid)
         # pylint: disable=broad-exception-caught, raise-missing-from
         except Exception as err:
             print(f"Error adding pages for crawl {crawl_id} to db: {err}", flush=True)

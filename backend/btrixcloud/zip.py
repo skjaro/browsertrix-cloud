@@ -2,6 +2,7 @@
 Methods for interacting with zip/WACZ files
 """
 
+import aiohttp
 import io
 import struct
 import zipfile
@@ -43,6 +44,26 @@ def sync_get_filestream(client, bucket, key, file_zipinfo, cd_start):
     return sync_iter_lines(content, decompress=decompress)
 
 
+async def get_filestream_aiohttp(url, file_zipinfo, cd_start):
+    """Return uncompressed byte stream of file in WACZ"""
+    # pylint: disable=too-many-locals
+    file_head = await fetch_aiohttp(url, cd_start + file_zipinfo.header_offset + 26, 4)
+    name_len = parse_little_endian_to_int(file_head[0:2])
+    extra_len = parse_little_endian_to_int(file_head[2:4])
+
+    content = await fetch_stream_aiohttp(
+        url,
+        cd_start + file_zipinfo.header_offset + 30 + name_len + extra_len,
+        file_zipinfo.compress_size,
+    )
+
+    decompress = False
+    if file_zipinfo.compress_type == zipfile.ZIP_DEFLATED:
+        decompress = True
+
+    return await iter_lines(content, decompress=decompress)
+
+
 def sync_iter_lines(chunk_iter, decompress=False, keepends=True):
     """
     Iter by lines, adapted from botocore
@@ -57,6 +78,16 @@ def sync_iter_lines(chunk_iter, decompress=False, keepends=True):
         pending = lines[-1]
     if pending:
         yield pending.splitlines(keepends)[0]
+
+
+async def iter_lines(line_iter, decompress=False):
+    """
+    Async iter by lines, decompressing as necessary
+    """
+    async for line in line_iter:
+        if decompress:
+            line = zlib.decompressobj(-zlib.MAX_WBITS).decompress(chunk)
+        yield line
 
 
 async def get_zip_file(client, bucket, key):
@@ -91,6 +122,44 @@ async def get_zip_file(client, bucket, key):
     )
     cd_start, cd_size = get_central_directory_metadata_from_eocd64(zip64_eocd_record)
     central_directory = await fetch(client, bucket, key, cd_start, cd_size)
+    return (
+        cd_start,
+        zipfile.ZipFile(
+            io.BytesIO(
+                central_directory + zip64_eocd_record + zip64_eocd_locator + eocd_record
+            )
+        ),
+    )
+
+
+async def get_zip_file_from_presigned_url(url: str):
+    """Fetch enough of the WACZ file be able to read the zip filelist"""
+    file_size = await get_file_size_presigned_url(url)
+    eocd_record = await fetch_aiohttp(
+        url, file_size - EOCD_RECORD_SIZE, EOCD_RECORD_SIZE
+    )
+
+    if file_size <= MAX_STANDARD_ZIP_SIZE:
+        cd_start, cd_size = get_central_directory_metadata_from_eocd(eocd_record)
+        central_directory = await fetch_aiohttp(url, cd_start, cd_size)
+        return (
+            cd_start,
+            zipfile.ZipFile(io.BytesIO(central_directory + eocd_record)),
+        )
+
+    zip64_eocd_record = await fetch_aiohttp(
+        url,
+        file_size
+        - (EOCD_RECORD_SIZE + ZIP64_EOCD_LOCATOR_SIZE + ZIP64_EOCD_RECORD_SIZE),
+        ZIP64_EOCD_RECORD_SIZE,
+    )
+    zip64_eocd_locator = await fetch_aiohttp(
+        url,
+        file_size - (EOCD_RECORD_SIZE + ZIP64_EOCD_LOCATOR_SIZE),
+        ZIP64_EOCD_LOCATOR_SIZE,
+    )
+    cd_start, cd_size = get_central_directory_metadata_from_eocd64(zip64_eocd_record)
+    central_directory = await fetch_aiohttp(url, cd_start, cd_size)
     return (
         cd_start,
         zipfile.ZipFile(
@@ -139,6 +208,13 @@ def sync_get_zip_file(client, bucket, key):
         return (cd_start, zip_file)
 
 
+async def get_file_size_presigned_url(url: str):
+    """Get file size from presigned url"""
+    async with aiohttp.ClientSession() as client:
+        async with client.head(url) as resp:
+            return resp.headers.get("ContentLength")
+
+
 async def get_file_size(client, bucket, key):
     """Get WACZ file size from HEAD request"""
     head_response = await client.head_object(Bucket=bucket, Key=key)
@@ -149,6 +225,16 @@ def sync_get_file_size(client, bucket, key):
     """Get WACZ file size from HEAD request"""
     head_response = client.head_object(Bucket=bucket, Key=key)
     return head_response["ContentLength"]
+
+
+async def fetch_aiohttp(url, start, length):
+    """Fetch a byte range from a file in object storage"""
+    end = start + length - 1
+    headers = {"Range": f"bytes={start}-{end}"}
+
+    async with aiohttp.ClientSession() as client:
+        async with client.get(url, headers=headers) as resp:
+            return await resp.read()
 
 
 async def fetch(client, bucket, key, start, length):
@@ -172,6 +258,17 @@ def sync_fetch_stream(client, bucket, key, start, length):
     end = start + length - 1
     response = client.get_object(Bucket=bucket, Key=key, Range=f"bytes={start}-{end}")
     return response["Body"].iter_chunks(chunk_size=CHUNK_SIZE)
+
+
+async def fetch_stream_aiohttp(url, start, length):
+    """Fetch a byte range from a presigned url as a stream"""
+    end = start + length - 1
+    headers = {"Range": f"bytes={start}-{end}"}
+
+    async with aiohttp.ClientSession() as client:
+        async with client.get(url, headers=headers) as resp:
+            async for line in resp.content:
+                yield line
 
 
 def get_central_directory_metadata_from_eocd(eocd):

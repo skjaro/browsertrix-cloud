@@ -46,6 +46,8 @@ from .models import (
 from .zip import (
     sync_get_zip_file,
     sync_get_filestream,
+    get_zip_file_from_presigned_url,
+    get_filestream_aiohttp,
 )
 
 from .utils import is_bool, slug_from_name
@@ -512,25 +514,49 @@ class StorageOps:
 
         return status_code == 204
 
-    async def sync_stream_pages_from_wacz(
+    async def stream_pages_from_wacz(
         self,
         org: Organization,
-        wacz_files: List[CrawlFile],
+        wacz_file: CrawlFile,
     ) -> Iterator[Dict[Any, Any]]:
-        """Return stream of page dicts from last of WACZs"""
-        async with self.get_sync_client(org) as (client, bucket, key):
-            loop = asyncio.get_event_loop()
+        """Return stream of page dicts from WACZ"""
+        wacz_url = wacz_file.path
+        cd_start, zip_file = await get_zip_file_from_presigned_url(wacz_url)
 
-            stream = await loop.run_in_executor(
-                None,
-                self._sync_get_pages,
-                wacz_files,
-                client,
-                bucket,
-                key,
+        # pylint: disable=too-many-function-args
+        async def stream_page_lines(
+            wacz_url, cd_start, pagefile_zipinfo
+        ) -> Iterator[Dict[Any, Any]]:
+            """Pass lines as json objects"""
+            print(
+                f"Fetching JSON lines from {pagefile_zipinfo.filename} in {wacz_url}",
+                flush=True,
             )
 
-            return stream
+            line_iter: Iterator[bytes] = await get_filestream_aiohttp(
+                client, bucket, wacz_key, pagefile_zipinfo, cd_start
+            )
+            async for line in line_iter:
+                print("line len: ", len(line), flush=True)
+                parsed = _parse_json(line.decode("utf-8", errors="ignore"))
+                print(parsed, flush=True)
+                yield parsed
+                print("parsed", flush=True)
+
+        page_generators: List[Iterator[Dict[Any, Any]]] = []
+
+        page_files = [
+            f
+            for f in zip_file.filelist
+            if f.filename.startswith("pages/")
+            and f.filename.endswith(".jsonl")
+            and not f.is_dir()
+        ]
+        for pagefile_zipinfo in page_files:
+            page_stream = await stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
+            page_generators.append(page_stream)
+
+        return chain.from_iterable(page_generators)
 
     async def sync_stream_wacz_logs(
         self,
@@ -674,7 +700,6 @@ class StorageOps:
         page_generators: List[Iterator[Dict[Any, Any]]] = []
 
         for wacz_file in wacz_files:
-            print(f"wacz file: {wacz_file.filename}", flush=True)
             wacz_key = key + wacz_file.filename
             cd_start, zip_file = sync_get_zip_file(client, bucket, wacz_key)
 
