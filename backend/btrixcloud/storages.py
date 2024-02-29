@@ -666,12 +666,15 @@ class StorageOps:
             )
             for line in line_iter:
                 print("line len: ", len(line), flush=True)
-                yield _parse_json(line.decode("utf-8", errors="ignore"))
+                parsed = _parse_json(line.decode("utf-8", errors="ignore"))
+                print(parsed, flush=True)
+                yield parsed
                 print("parsed", flush=True)
 
         page_generators: List[Iterator[Dict[Any, Any]]] = []
 
         for wacz_file in wacz_files:
+            print(f"wacz file: {wacz_file.filename}", flush=True)
             wacz_key = key + wacz_file.filename
             cd_start, zip_file = sync_get_zip_file(client, bucket, wacz_key)
 
@@ -688,6 +691,8 @@ class StorageOps:
                         wacz_key, wacz_file.filename, cd_start, pagefile_zipinfo
                     )
                 )
+
+        print(f"page generators length: {len(page_generators)}", flush=True)
 
         return chain.from_iterable(page_generators)
 
