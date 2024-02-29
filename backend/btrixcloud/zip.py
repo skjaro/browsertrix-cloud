@@ -2,11 +2,12 @@
 Methods for interacting with zip/WACZ files
 """
 
-import aiohttp
 import io
 import struct
 import zipfile
 import zlib
+
+import aiohttp
 
 
 # ============================================================================

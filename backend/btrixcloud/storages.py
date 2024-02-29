@@ -517,7 +517,6 @@ class StorageOps:
 
     async def stream_pages_from_wacz(
         self,
-        org: Organization,
         wacz_file: CrawlFileOut,
     ) -> Iterator[Dict[Any, Any]]:
         """Return stream of page dicts from WACZ"""

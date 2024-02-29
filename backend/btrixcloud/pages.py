@@ -50,9 +50,8 @@ class PageOps:
         """Add pages to database from WACZ files"""
         try:
             crawl = await self.crawl_ops.get_crawl(crawl_id, None)
-            org = await self.org_ops.get_org_by_id(crawl.oid)
             for wacz_file in crawl.resources:
-                stream = await self.storage_ops.stream_pages_from_wacz(org, wacz_file)
+                stream = await self.storage_ops.stream_pages_from_wacz(wacz_file)
                 async for page_dict in stream:
                     if not page_dict.get("url"):
                         continue
