@@ -529,7 +529,7 @@ class StorageOps:
         # pylint: disable=too-many-function-args
         async def stream_page_lines(
             wacz_url, cd_start, pagefile_zipinfo
-        ) -> Iterator[Dict[Any, Any]]:
+        ) -> Stream[Never]:
             """Pass lines as json objects"""
             print(
                 f"Fetching JSON lines from {pagefile_zipinfo.filename} in {wacz_url}",
@@ -562,7 +562,14 @@ class StorageOps:
                 stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
             )
 
-        return stream.merge(page_generators[0], *page_generators[1:])
+        first_generator = page_generators[0]
+        remaining_generators = []
+        try:
+            remaining_generators = page_generators[1:]
+        except IndexError:
+            pass
+
+        return await stream.merge(page_generators[0], *remaining_generators)
 
     async def sync_stream_wacz_logs(
         self,
