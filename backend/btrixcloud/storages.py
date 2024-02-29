@@ -521,6 +521,7 @@ class StorageOps:
     ) -> Iterator[Dict[Any, Any]]:
         """Return stream of page dicts from WACZ"""
         wacz_url = wacz_file.path
+        print(f"WACZ url: {wacz_url}", flush=True)
         cd_start, zip_file = await get_zip_file_from_presigned_url(wacz_url)
 
         # pylint: disable=too-many-function-args
@@ -553,7 +554,11 @@ class StorageOps:
             and not f.is_dir()
         ]
         for pagefile_zipinfo in page_files:
+            print(
+                f"Getting page stream for file {pagefile_zipinfo.filename}", flush=True
+            )
             page_stream = await stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
+            print(f"Page stream type: {type(page_stream)}", flush=True)
             page_generators.append(page_stream)
 
         return chain.from_iterable(page_generators)
