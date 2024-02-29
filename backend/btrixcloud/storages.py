@@ -562,7 +562,7 @@ class StorageOps:
         except IndexError:
             pass
 
-        return await stream.merge(page_generators[0], *remaining_generators)
+        return await stream.merge(first_generator, *remaining_generators)
 
     async def sync_stream_wacz_logs(
         self,
