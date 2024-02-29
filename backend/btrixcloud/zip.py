@@ -210,7 +210,9 @@ def sync_get_zip_file(client, bucket, key):
 
 async def get_file_size_presigned_url(url: str):
     """Get file size from presigned url"""
-    headers = {"Host": "localhost:30870"}
+    headers = {}
+    if "host.docker.internal" in url:
+        headers["Host"] = "localhost:30870"
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
@@ -234,7 +236,10 @@ def sync_get_file_size(client, bucket, key):
 async def fetch_aiohttp(url, start, length):
     """Fetch a byte range from a file in object storage"""
     end = start + length - 1
-    headers = {"Range": f"bytes={start}-{end}", "Host": "localhost:30870"}
+    headers = {"Range": f"bytes={start}-{end}"}
+    if "host.docker.internal" in url:
+        headers["Host"] = "localhost:30870"
+
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
             return await resp.read()

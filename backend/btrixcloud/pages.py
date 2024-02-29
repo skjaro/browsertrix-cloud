@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException
 import pymongo
+import traceback
 
 from .models import (
     Page,
@@ -59,6 +60,7 @@ class PageOps:
                     await self.add_page_to_db(page_dict, crawl_id, crawl.oid)
         # pylint: disable=broad-exception-caught, raise-missing-from
         except Exception as err:
+            traceback.print_exc()
             print(f"Error adding pages for crawl {crawl_id} to db: {err}", flush=True)
 
     async def add_page_to_db(self, page_dict: Dict[str, Any], crawl_id: str, oid: UUID):
