@@ -1,12 +1,12 @@
 """crawl pages"""
 
+import traceback
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, Tuple, List, Dict, Any, Union
 from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException
 import pymongo
-import traceback
 
 from .models import (
     Page,

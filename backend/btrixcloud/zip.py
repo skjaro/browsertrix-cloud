@@ -216,9 +216,9 @@ async def get_file_size_presigned_url(url: str):
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
-            print(resp.request_info, flush=True)
-            print(resp.headers, flush=True)
-            return int(resp.headers.get("Content-Length", 0))
+            length = int(resp.headers.get("Content-Length", 0))
+
+    print("WACZ length", length, flush=True)
 
 
 async def get_file_size(client, bucket, key):
@@ -239,6 +239,8 @@ async def fetch_aiohttp(url, start, length):
     headers = {"Range": f"bytes={start}-{end}"}
     if "host.docker.internal" in url:
         headers["Host"] = "localhost:30870"
+
+    print(f"Fetching chunk: {length}")
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
