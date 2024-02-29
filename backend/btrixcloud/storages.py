@@ -515,10 +515,7 @@ class StorageOps:
 
         return status_code == 204
 
-    async def stream_pages_from_wacz(
-        self,
-        wacz_file: CrawlFileOut,
-    ) -> Iterator[Dict[Any, Any]]:
+    async def stream_pages_from_wacz(self, wacz_file: CrawlFileOut):
         """Return stream of page dicts from WACZ"""
         wacz_url = wacz_file.path
         if wacz_url.startswith("/data"):
@@ -526,7 +523,9 @@ class StorageOps:
         cd_start, zip_file = await get_zip_file_from_presigned_url(wacz_url)
 
         # pylint: disable=too-many-function-args
-        async def stream_page_lines(wacz_url, cd_start, pagefile_zipinfo):
+        async def stream_page_lines(
+            wacz_url, cd_start, pagefile_zipinfo
+        ) -> AsyncIterator[Dict[Any, Any]]:
             """Pass lines as json objects"""
             print(
                 f"Fetching JSON lines from {pagefile_zipinfo.filename} in {wacz_url}",
@@ -538,7 +537,7 @@ class StorageOps:
             ):
                 yield _parse_json(line.decode("utf-8", errors="ignore"))
 
-        page_generators: List[Iterator[Dict[Any, Any]]] = []
+        page_generators: List[AsyncIterator[Dict[Any, Any]]] = []
 
         page_files = [
             f
@@ -562,7 +561,7 @@ class StorageOps:
         except IndexError:
             pass
 
-        return stream.merge(first_generator, *remaining_generators)
+        return stream.chain(first_generator, *remaining_generators)
 
     async def sync_stream_wacz_logs(
         self,
