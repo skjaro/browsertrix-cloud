@@ -26,6 +26,7 @@ from datetime import datetime
 
 from fastapi import Depends, HTTPException
 from stream_zip import stream_zip, NO_COMPRESSION_64
+from aiostream import stream
 
 import aiobotocore.session
 import boto3
@@ -517,10 +518,12 @@ class StorageOps:
     async def stream_pages_from_wacz(
         self,
         org: Organization,
-        wacz_file: CrawlFile,
+        wacz_file: CrawlFileOut,
     ) -> Iterator[Dict[Any, Any]]:
         """Return stream of page dicts from WACZ"""
         wacz_url = wacz_file.path
+        if wacz_url.startswith("/data"):
+            wacz_url = f"http://host.docker.internal:30870{wacz_url}"
         print(f"WACZ url: {wacz_url}", flush=True)
         cd_start, zip_file = await get_zip_file_from_presigned_url(wacz_url)
 
@@ -534,10 +537,9 @@ class StorageOps:
                 flush=True,
             )
 
-            line_iter: Iterator[bytes] = await get_filestream_aiohttp(
-                client, bucket, wacz_key, pagefile_zipinfo, cd_start
-            )
-            async for line in line_iter:
+            async for line in get_filestream_aiohttp(
+                wacz_url, pagefile_zipinfo, cd_start
+            ):
                 print("line len: ", len(line), flush=True)
                 parsed = _parse_json(line.decode("utf-8", errors="ignore"))
                 print(parsed, flush=True)
@@ -557,11 +559,10 @@ class StorageOps:
             print(
                 f"Getting page stream for file {pagefile_zipinfo.filename}", flush=True
             )
-            page_stream = await stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
-            print(f"Page stream type: {type(page_stream)}", flush=True)
+            page_stream = stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
             page_generators.append(page_stream)
 
-        return chain.from_iterable(page_generators)
+        return stream.merge(*page_generators)
 
     async def sync_stream_wacz_logs(
         self,

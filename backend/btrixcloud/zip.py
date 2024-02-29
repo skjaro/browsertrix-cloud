@@ -51,17 +51,26 @@ async def get_filestream_aiohttp(url, file_zipinfo, cd_start):
     name_len = parse_little_endian_to_int(file_head[0:2])
     extra_len = parse_little_endian_to_int(file_head[2:4])
 
-    content = await fetch_stream_aiohttp(
-        url,
-        cd_start + file_zipinfo.header_offset + 30 + name_len + extra_len,
-        file_zipinfo.compress_size,
-    )
-
     decompress = False
     if file_zipinfo.compress_type == zipfile.ZIP_DEFLATED:
         decompress = True
 
-    return await iter_lines(content, decompress=decompress)
+    pending = b""
+
+    async for chunk in fetch_stream_aiohttp(
+        url,
+        cd_start + file_zipinfo.header_offset + 30 + name_len + extra_len,
+        file_zipinfo.compress_size,
+    ):
+        if decompress:
+            chunk = zlib.decompressobj(-zlib.MAX_WBITS).decompress(chunk)
+        lines = (pending + chunk).splitlines(True)
+        for line in lines[:-1]:
+            yield line.splitlines(True)[0]
+        pending = lines[-1]
+
+    if pending:
+        yield pending.splitlines(True)[0]
 
 
 def sync_iter_lines(chunk_iter, decompress=False, keepends=True):
@@ -78,16 +87,6 @@ def sync_iter_lines(chunk_iter, decompress=False, keepends=True):
         pending = lines[-1]
     if pending:
         yield pending.splitlines(keepends)[0]
-
-
-async def iter_lines(line_iter, decompress=False):
-    """
-    Async iter by lines, decompressing as necessary
-    """
-    async for line in line_iter:
-        if decompress:
-            line = zlib.decompressobj(-zlib.MAX_WBITS).decompress(chunk)
-        yield line
 
 
 async def get_zip_file(client, bucket, key):
@@ -210,9 +209,13 @@ def sync_get_zip_file(client, bucket, key):
 
 async def get_file_size_presigned_url(url: str):
     """Get file size from presigned url"""
+    headers = {"Host": "localhost:30870"}
+
     async with aiohttp.ClientSession() as client:
-        async with client.head(url) as resp:
-            return resp.headers.get("ContentLength")
+        async with client.get(url, headers=headers) as resp:
+            print(resp.request_info, flush=True)
+            print(resp.headers, flush=True)
+            return int(resp.headers.get("Content-Length", 0))
 
 
 async def get_file_size(client, bucket, key):
@@ -230,8 +233,7 @@ def sync_get_file_size(client, bucket, key):
 async def fetch_aiohttp(url, start, length):
     """Fetch a byte range from a file in object storage"""
     end = start + length - 1
-    headers = {"Range": f"bytes={start}-{end}"}
-
+    headers = {"Range": f"bytes={start}-{end}", "Host": "localhost:30870"}
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
             return await resp.read()
@@ -267,8 +269,8 @@ async def fetch_stream_aiohttp(url, start, length):
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
-            async for line in resp.content:
-                yield line
+            async for chunk, _ in resp.content.iter_chunks():
+                yield chunk
 
 
 def get_central_directory_metadata_from_eocd(eocd):

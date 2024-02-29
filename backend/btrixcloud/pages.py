@@ -48,19 +48,19 @@ class PageOps:
 
     async def add_crawl_pages_to_db_from_wacz(self, crawl_id: str):
         """Add pages to database from WACZ files"""
-        try:
-            crawl = await self.crawl_ops.get_crawl(crawl_id, None)
-            org = await self.org_ops.get_org_by_id(crawl.oid)
-            for wacz_file in crawl.resources:
-                stream = await self.storage_ops.stream_pages_from_wacz(org, wacz_file)
-                async for page_dict in stream:
-                    if not page_dict.get("url"):
-                        continue
+        # try:
+        crawl = await self.crawl_ops.get_crawl(crawl_id, None)
+        org = await self.org_ops.get_org_by_id(crawl.oid)
+        for wacz_file in crawl.resources:
+            stream = await self.storage_ops.stream_pages_from_wacz(org, wacz_file)
+            async for page_dict in stream:
+                if not page_dict.get("url"):
+                    continue
 
-                    await self.add_page_to_db(page_dict, crawl_id, crawl.oid)
-        # pylint: disable=broad-exception-caught, raise-missing-from
-        except Exception as err:
-            print(f"Error adding pages for crawl {crawl_id} to db: {err}", flush=True)
+                await self.add_page_to_db(page_dict, crawl_id, crawl.oid)
+        # # pylint: disable=broad-exception-caught, raise-missing-from
+        # except Exception as err:
+        #     print(f"Error adding pages for crawl {crawl_id} to db: {err}", flush=True)
 
     async def add_page_to_db(self, page_dict: Dict[str, Any], crawl_id: str, oid: UUID):
         """Add page to database"""
