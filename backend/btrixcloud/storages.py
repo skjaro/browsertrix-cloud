@@ -562,7 +562,7 @@ class StorageOps:
                 stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
             )
 
-        return stream.merge(*page_generators)
+        return stream.merge(page_generators[0], *page_generators[1:])
 
     async def sync_stream_wacz_logs(
         self,
