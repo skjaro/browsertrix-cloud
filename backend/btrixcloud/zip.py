@@ -67,8 +67,10 @@ async def get_filestream_aiohttp(url, file_zipinfo, cd_start):
             chunk = zlib.decompressobj(-zlib.MAX_WBITS).decompress(chunk)
         lines = (pending + chunk).splitlines(True)
         for line in lines[:-1]:
+            print("line size", len(line), flush=True)
             yield line.splitlines(True)[0]
         pending = lines[-1]
+        print("line size", len(pending), flush=True)
 
     if pending:
         yield pending.splitlines(True)[0]
@@ -279,9 +281,12 @@ async def fetch_stream_aiohttp(url, start, length):
     end = start + length - 1
     headers = {"Range": f"bytes={start}-{end}"}
 
+    print("Fetch stream", length, flush=True)
+
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
             async for chunk, _ in resp.content.iter_chunks():
+                print("Chunk size", len(chunk), flush=True)
                 yield chunk
 
 
