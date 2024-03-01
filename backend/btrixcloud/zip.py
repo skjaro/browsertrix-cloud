@@ -143,11 +143,12 @@ async def get_zip_file_from_presigned_url(url: str):
 
     if file_size <= MAX_STANDARD_ZIP_SIZE:
         cd_start, cd_size = get_central_directory_metadata_from_eocd(eocd_record)
-        central_directory = await fetch_aiohttp(url, cd_start, cd_size)
-        return (
-            cd_start,
-            zipfile.ZipFile(io.BytesIO(central_directory + eocd_record)),
-        )
+        if cd_start > 0 and cd_start < file_size:
+            central_directory = await fetch_aiohttp(url, cd_start, cd_size)
+            return (
+                cd_start,
+                zipfile.ZipFile(io.BytesIO(central_directory + eocd_record)),
+            )
 
     zip64_eocd_record = await fetch_aiohttp(
         url,
@@ -161,6 +162,9 @@ async def get_zip_file_from_presigned_url(url: str):
         ZIP64_EOCD_LOCATOR_SIZE,
     )
     cd_start, cd_size = get_central_directory_metadata_from_eocd64(zip64_eocd_record)
+    if cd_start < 0 or cd_start > file_size:
+        raise Exception("Invalid Zip")
+
     central_directory = await fetch_aiohttp(url, cd_start, cd_size)
     return (
         cd_start,
@@ -223,7 +227,7 @@ async def get_file_size_presigned_url(url: str):
             if cr:
                 length = int(cr.split("/")[1])
 
-    print("WACZ length", length, flush=True)
+    print("WACZ length", length, url, flush=True)
     return length
 
 
