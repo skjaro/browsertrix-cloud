@@ -93,7 +93,6 @@ class PageOps:
                     exclude_unset=True, exclude_none=True, exclude_defaults=True
                 )
             )
-            print(f"Added page {page_id} from crawl {crawl_id} to db", flush=True)
         except pymongo.errors.DuplicateKeyError:
             return
         # pylint: disable=broad-except
