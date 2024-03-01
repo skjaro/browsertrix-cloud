@@ -282,7 +282,6 @@ async def fetch_stream_aiohttp(url, start, length):
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
             async for chunk, _ in resp.content.iter_chunks():
-                print("Chunk size", len(chunk), flush=True)
                 yield chunk
 
 
