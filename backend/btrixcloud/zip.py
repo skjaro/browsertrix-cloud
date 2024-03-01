@@ -67,10 +67,8 @@ async def get_filestream_aiohttp(url, file_zipinfo, cd_start):
             chunk = zlib.decompressobj(-zlib.MAX_WBITS).decompress(chunk)
         lines = (pending + chunk).splitlines(True)
         for line in lines[:-1]:
-            print("line size", len(line), flush=True)
             yield line.splitlines(True)[0]
         pending = lines[-1]
-        print("line size", len(pending), flush=True)
 
     if pending:
         yield pending.splitlines(True)[0]
@@ -226,8 +224,6 @@ async def get_file_size_presigned_url(url: str):
             cr = resp.headers.get("Content-Range")
             if cr:
                 length = int(cr.split("/")[1])
-
-    print("WACZ length", length, url, flush=True)
     return length
 
 
@@ -249,8 +245,6 @@ async def fetch_aiohttp(url, start, length):
     headers = {"Range": f"bytes={start}-{end}"}
     if "host.docker.internal" in url:
         headers["Host"] = "localhost:30870"
-
-    print(f"Fetching chunk: {length}")
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:
@@ -284,8 +278,6 @@ async def fetch_stream_aiohttp(url, start, length):
     """Fetch a byte range from a presigned url as a stream"""
     end = start + length - 1
     headers = {"Range": f"bytes={start}-{end}"}
-
-    print("Fetch stream", length, flush=True)
 
     async with aiohttp.ClientSession() as client:
         async with client.get(url, headers=headers) as resp:

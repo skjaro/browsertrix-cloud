@@ -88,9 +88,6 @@ class PageOps:
                     else datetime.now()
                 ),
             )
-            print(
-                f"About to add page {page_id} from crawl {crawl_id} to db", flush=True
-            )
             await self.pages.insert_one(
                 page.to_dict(
                     exclude_unset=True, exclude_none=True, exclude_defaults=True

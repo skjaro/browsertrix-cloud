@@ -36,10 +36,9 @@ class Migration(BaseMigration):
 
         for crawl_id in crawl_ids_no_pages:
             try:
-                print(f"Adding crawl pages to db for crawl {crawl_id}", flush=True)
                 await self.page_ops.add_crawl_pages_to_db_from_wacz(crawl_id)
                 print(
-                    f"Finished adding crawl pages to db for crawl {crawl_id}",
+                    f"Added crawl pages to db for crawl {crawl_id}",
                     flush=True,
                 )
             # pylint: disable=broad-exception-caught, raise-missing-from

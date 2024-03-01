@@ -547,9 +547,6 @@ class StorageOps:
             and not f.is_dir()
         ]
         for pagefile_zipinfo in page_files:
-            print(
-                f"Getting page stream for file {pagefile_zipinfo.filename}", flush=True
-            )
             page_generators.append(
                 stream_page_lines(wacz_url, cd_start, pagefile_zipinfo)
             )
@@ -696,11 +693,7 @@ class StorageOps:
                 client, bucket, wacz_key, pagefile_zipinfo, cd_start
             )
             for line in line_iter:
-                print("line len: ", len(line), flush=True)
-                parsed = _parse_json(line.decode("utf-8", errors="ignore"))
-                print(parsed, flush=True)
-                yield parsed
-                print("parsed", flush=True)
+                yield _parse_json(line.decode("utf-8", errors="ignore"))
 
         page_generators: List[Iterator[Dict[Any, Any]]] = []
 
@@ -721,8 +714,6 @@ class StorageOps:
                         wacz_key, wacz_file.filename, cd_start, pagefile_zipinfo
                     )
                 )
-
-        print(f"page generators length: {len(page_generators)}", flush=True)
 
         return chain.from_iterable(page_generators)
 
