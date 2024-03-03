@@ -233,7 +233,7 @@ class CrawlOperator(BaseOperator):
         else:
             status.scale = crawl.scale
             now = dt_now()
-            await self.crawl_ops.set_crawl_exec_last_update_time(crawl_id, now)
+            await self.crawl_ops.inc_crawl_exec_time(crawl_id, 0, now)
             status.lastUpdatedTime = to_k8s_date(now)
 
         children = self._load_redis(params, status, data.children)
@@ -835,7 +835,7 @@ class CrawlOperator(BaseOperator):
         )
 
         if not update_start_time:
-            await self.crawl_ops.set_crawl_exec_last_update_time(crawl_id, now)
+            await self.crawl_ops.inc_crawl_exec_time(crawl_id, 0, now)
             status.lastUpdatedTime = to_k8s_date(now)
             return
 
@@ -912,8 +912,6 @@ class CrawlOperator(BaseOperator):
                 max_duration = max(duration, max_duration)
 
         if exec_time:
-            await self.crawl_ops.inc_crawl_exec_time(crawl_id, exec_time)
-
             await self.org_ops.inc_org_time_stats(oid, exec_time, True)
             status.crawlExecTime += exec_time
             status.elapsedCrawlTime += max_duration
@@ -923,7 +921,7 @@ class CrawlOperator(BaseOperator):
             flush=True,
         )
 
-        await self.crawl_ops.set_crawl_exec_last_update_time(crawl_id, now)
+        await self.crawl_ops.inc_crawl_exec_time(crawl_id, exec_time, now)
         status.lastUpdatedTime = to_k8s_date(now)
 
     def should_mark_waiting(self, state, started):
